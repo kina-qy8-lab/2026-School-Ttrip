@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>修学旅行プログラム選択</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>修学旅行プログラム選択</h1>
+      <p id="subtitle">Googleアカウントでログインしてください</p>
+    </div>
+    <div class="header-actions">
+      <span id="userBadge" class="badge hidden"></span>
+      <button id="loginBtn" class="primary">Googleでログイン</button>
+      <button id="logoutBtn" class="secondary hidden">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="notRegisteredView" class="card hidden">
+      <h2>利用できません</h2>
+      <p>このGoogleアカウントは登録されていません。学校で指定されたアカウントでログインしてください。</p>
+    </section>
+
+    <section id="loadingView" class="card">
+      <h2>読み込み中...</h2>
+      <p>少しお待ちください。</p>
+    </section>
+
+    <section id="studentView" class="hidden">
+      <div class="grid two">
+        <section class="card">
+          <h2>あなたの状態</h2>
+          <div id="studentStatus" class="statusBox"></div>
+        </section>
+
+        <section class="card">
+          <h2>申込人数</h2>
+          <p class="muted">現在の申込期間における人数です。定員に達したプログラムは次回以降募集終了になります。</p>
+          <div id="countList" class="countList"></div>
+        </section>
+      </div>
+
+      <section id="applicationCard" class="card hidden">
+        <h2 id="applicationTitle">プログラムを選択</h2>
+        <div id="programCards" class="programCards"></div>
+        <div class="actions">
+          <button id="submitApplicationBtn" class="primary" disabled>申し込む</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="adminView" class="hidden">
+      <nav class="tabs">
+        <button class="tab active" data-tab="adminDashboard">ダッシュボード</button>
+        <button class="tab" data-tab="adminStudents">生徒管理</button>
+        <button class="tab" data-tab="adminPrograms">プログラム管理</button>
+        <button class="tab" data-tab="adminRounds">日程設定</button>
+        <button class="tab" data-tab="adminDraw">抽選実行</button>
+        <button class="tab" data-tab="adminExport">名簿出力</button>
+        <button class="tab" data-tab="adminAdmins">管理者設定</button>
+      </nav>
+
+      <section id="adminDashboard" class="tabPanel card">
+        <h2>ダッシュボード</h2>
+        <div id="adminSummary" class="summaryGrid"></div>
+        <div class="actions">
+          <button id="refreshAdminBtn" class="secondary">最新状態を再読み込み</button>
+          <button id="seedProgramsBtn" class="secondary">PDF掲載8プログラムを初期登録</button>
+        </div>
+      </section>
+
+      <section id="adminStudents" class="tabPanel card hidden">
+        <h2>生徒管理</h2>
+        <p class="muted">CSV形式：email,name,classNo,attendanceNo</p>
+        <textarea id="studentsCsv" rows="8" placeholder="student001@example.jp,山田 太郎,1,1"></textarea>
+        <div class="actions">
+          <button id="importStudentsBtn" class="primary">CSVから生徒を登録・更新</button>
+          <button id="downloadStudentTemplateBtn" class="secondary">CSVひな形をダウンロード</button>
+        </div>
+        <div id="studentsResult" class="result"></div>
+      </section>
+
+      <section id="adminPrograms" class="tabPanel card hidden">
+        <h2>プログラム管理</h2>
+        <form id="programForm" class="formGrid">
+          <input type="hidden" id="programId" />
+          <label>表示順<input id="programOrder" type="number" min="1" required /></label>
+          <label>定員<input id="programCapacity" type="number" min="1" value="40" required /></label>
+          <label class="wide">プログラム名<input id="programTitle" required /></label>
+          <label class="wide">タグ（カンマ区切り）<input id="programTags" /></label>
+          <label class="wide">画像URL<input id="programImageUrl" placeholder="./assets/p01.jpg など" /></label>
+          <label class="wide">内容<textarea id="programDescription" rows="5"></textarea></label>
+          <div class="actions wide">
+            <button type="submit" class="primary">保存</button>
+            <button type="button" id="clearProgramFormBtn" class="secondary">新規入力に戻す</button>
+          </div>
+        </form>
+        <div id="programAdminList" class="adminList"></div>
+      </section>
+
+      <section id="adminRounds" class="tabPanel card hidden">
+        <h2>日程設定</h2>
+        <p class="muted">時刻は端末のローカル時刻で入力されます。第二次抽選は実施ありで固定しています。</p>
+        <div id="roundForms" class="roundForms"></div>
+        <div class="actions">
+          <button id="saveRoundsBtn" class="primary">日程を保存</button>
+        </div>
+      </section>
+
+      <section id="adminDraw" class="tabPanel card hidden">
+        <h2>抽選実行</h2>
+        <p class="warn">抽選実行後は結果が保存されます。やり直す場合は、学校内で方針を確認してから実施してください。</p>
+        <div id="drawStatus" class="result"></div>
+        <div class="actions vertical">
+          <button class="danger" data-draw="round1">第一次抽選を実行</button>
+          <button class="danger" data-draw="round2">第二次抽選を実行</button>
+          <button class="danger" data-draw="final">最終抽選を実行</button>
+        </div>
+      </section>
+
+      <section id="adminExport" class="tabPanel card hidden">
+        <h2>名簿出力</h2>
+        <p>確定版・暫定版のExcel名簿を出力します。</p>
+        <div class="actions">
+          <button id="exportTentativeBtn" class="primary">暫定版Excelを出力</button>
+          <button id="exportFinalBtn" class="primary">確定版Excelを出力</button>
+        </div>
+      </section>
+
+      <section id="adminAdmins" class="tabPanel card hidden">
+        <h2>管理者設定</h2>
+        <p class="muted">教員のGoogleアカウントを管理者として登録します。</p>
+        <div class="inlineForm">
+          <input id="adminEmailInput" type="email" placeholder="teacher@example.jp" />
+          <input id="adminNameInput" placeholder="氏名" />
+          <button id="addAdminBtn" class="primary">追加</button>
+        </div>
+        <div id="adminList" class="adminList"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="./firebase-config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
