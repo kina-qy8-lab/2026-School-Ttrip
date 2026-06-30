@@ -3,291 +3,782 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>修学旅行 プログラム選択</title>
+<title>修学旅行 プログラムさがし</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#f5f6f8; --card:#fff; --ink:#1c2330; --sub:#5b6472;
-    --line:#e3e7ee; --brand:#2f80ed; --brand-d:#1f63c4;
-    --ok:#2b9d6e; --warn:#e07a3c; --bad:#d2453f; --radius:14px;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
-    background:var(--bg);color:var(--ink);line-height:1.6}
-  header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
-  .bar{max-width:920px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
-  .bar h1{font-size:16px;margin:0;font-weight:700}
-  .who{margin-left:auto;font-size:13px;color:var(--sub);text-align:right}
-  main{max-width:920px;margin:0 auto;padding:16px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
-  .btn{appearance:none;border:0;border-radius:10px;padding:11px 18px;font-size:15px;font-weight:600;cursor:pointer}
-  .btn-primary{background:var(--brand);color:#fff}
-  .btn-primary:hover{background:var(--brand-d)}
-  .btn-ghost{background:#eef1f6;color:var(--ink)}
-  .btn:disabled{opacity:.5;cursor:not-allowed}
-  .muted{color:var(--sub);font-size:13px}
-  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600}
-  .pill-ok{background:#e6f6ee;color:var(--ok)}
-  .pill-warn{background:#fdf0e6;color:var(--warn)}
-  .pill-bad{background:#fbe9e8;color:var(--bad)}
-  .pill-info{background:#e9f1fd;color:var(--brand-d)}
-  .plist{display:grid;gap:12px}
-  .prog{border:2px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:#fff;transition:border-color .12s}
-  .prog:hover{border-color:#c9d4e6}
-  .prog.sel{border-color:var(--brand);box-shadow:0 0 0 2px #2f80ed22}
-  .prog.full{opacity:.55;cursor:not-allowed}
-  .prog .row{display:flex;gap:12px;padding:12px}
-  .prog img{width:96px;height:72px;object-fit:cover;border-radius:8px;background:#eef1f6;flex:none}
-  .prog .ttl{font-weight:700;font-size:15px}
-  .prog .meta{font-size:12px;color:var(--sub);margin-top:2px}
-  .prog .desc{font-size:13px;color:var(--sub);margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .count{font-size:12px;font-weight:700}
-  .center{text-align:center;padding:40px 16px}
-  .err{color:var(--bad);font-size:14px}
-  .sticky-actions{position:sticky;bottom:0;background:linear-gradient(#fff0,#fff 30%);padding:14px 0 4px;display:flex;gap:10px;justify-content:flex-end}
-  .big{font-size:20px;font-weight:800}
-  .deadline{font-size:13px;color:var(--warn);font-weight:600}
+:root{
+  --ink:#16203a; --ink-soft:#64708a; --paper:#eaeefb; --card:#ffffff;
+  --line:#e2e7f1; --primary:#4b3fd6; --primary-d:#3a30b0; --accent:#ff7a45;
+  --success:#12a36a; --hanko:#e0392f; --warn:#e08a2c;
+  --radius:18px; --shadow:0 14px 34px -16px rgba(22,32,58,.32);
+  --font-display:'Zen Maru Gothic',system-ui,sans-serif;
+  --font-body:'Zen Kaku Gothic New',system-ui,sans-serif;
+  --font-mono:'Space Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:var(--font-body); color:var(--ink); line-height:1.6;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, #d9def7 0, transparent 60%),
+    radial-gradient(900px 500px at -10% 0%, #e7e3ff 0, transparent 55%),
+    var(--paper);
+  background-attachment:fixed; min-height:100vh;
+}
+a{color:var(--primary)}
+.wrap{max-width:980px;margin:0 auto;padding:0 18px}
+
+/* ---------- header ---------- */
+header.top{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
+  background:rgba(255,255,255,.72);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:12px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:900;font-size:18px;letter-spacing:.02em}
+.brand .dot{width:12px;height:12px;border-radius:50%;
+  background:conic-gradient(from 200deg,var(--primary),var(--accent),var(--success),var(--primary));box-shadow:0 0 0 4px #4b3fd61a}
+.top .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.userchip{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:8px}
+.userchip b{color:var(--ink)}
+.adminbtn{font-family:var(--font-body);font-weight:700;font-size:13px;border:1px solid var(--line);
+  background:#fff;color:var(--ink);padding:8px 13px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.15s}
+.adminbtn:hover{border-color:var(--primary);color:var(--primary);box-shadow:0 4px 14px -6px #4b3fd655}
+.linkbtn{background:none;border:0;color:var(--primary);font:inherit;font-size:13px;cursor:pointer;padding:0}
+
+/* ---------- buttons ---------- */
+.btn{font-family:var(--font-body);font-weight:700;border:0;border-radius:12px;
+  padding:13px 22px;font-size:15px;cursor:pointer;transition:transform .12s,box-shadow .15s,background .15s}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:linear-gradient(120deg,var(--primary),#6d5ce6);color:#fff;box-shadow:0 10px 24px -10px #4b3fd6aa}
+.btn-primary:hover{box-shadow:0 14px 30px -10px #4b3fd6cc}
+.btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:#c8cfe2}
+.btn-bad{background:#fdecea;color:var(--hanko)}
+.btn-ok{background:#e7f7ef;color:var(--success)}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.btn-lg{padding:15px 28px;font-size:16px;border-radius:14px}
+
+/* ---------- pills / tags ---------- */
+.pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:11px;font-weight:700;
+  letter-spacing:.04em;padding:3px 9px;border-radius:999px}
+.pill-ok{background:#e3f6ec;color:var(--success)}.pill-warn{background:#fcefda;color:var(--warn)}
+.pill-bad{background:#fde8e6;color:var(--hanko)}.pill-info{background:#eae7ff;color:var(--primary)}
+.tag{font-size:11px;font-weight:700;color:var(--ink-soft);background:#f1f3fa;border:1px solid var(--line);
+  padding:2px 8px;border-radius:6px}
+
+/* ---------- hero ---------- */
+.hero{position:relative;overflow:hidden;border-radius:24px;margin:22px 0;padding:34px 28px;color:#fff;
+  background:linear-gradient(125deg,#3a2fb0 0%,#6d5ce6 46%,#ff6f91 100%);box-shadow:var(--shadow)}
+.hero::after{content:"";position:absolute;inset:0;opacity:.5;
+  background:radial-gradient(380px 200px at 90% -20%,#ffd86b88,transparent 60%),
+            radial-gradient(300px 200px at -5% 120%,#38ef7d55,transparent 60%);
+  animation:drift 14s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate3d(0,-12px,0) scale(1.05)}}
+.hero .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.22em;opacity:.85;margin:0 0 8px}
+.hero h1{font-family:var(--font-display);font-weight:900;font-size:clamp(26px,5vw,40px);margin:0;line-height:1.2;position:relative}
+.hero p{margin:10px 0 0;opacity:.92;max-width:32em;position:relative}
+.hero .route{font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;margin-top:14px;opacity:.9;
+  display:inline-flex;align-items:center;gap:8px}
+.hero .route .ln{width:46px;height:1px;background:#fff9;position:relative}
+.hero .route .ln::after{content:"✈";position:absolute;right:-2px;top:-9px;font-size:12px}
+
+/* phase strip in dashboard */
+.phase{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:6px 0 2px;position:relative}
+.phase .now{font-family:var(--font-display);font-weight:700;font-size:18px}
+.countdown{font-family:var(--font-mono);font-weight:700;font-size:15px;background:#ffffff22;border:1px solid #ffffff44;
+  padding:5px 12px;border-radius:10px;letter-spacing:.04em}
+
+/* ---------- cards / sections ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:0 8px 24px -18px rgba(22,32,58,.4)}
+.section-h{display:flex;align-items:baseline;gap:10px;margin:26px 2px 14px}
+.section-h h2{font-family:var(--font-display);font-weight:700;font-size:20px;margin:0}
+.section-h .sub{color:var(--ink-soft);font-size:13px}
+.muted{color:var(--ink-soft);font-size:13px}
+.center{text-align:center}
+
+/* ---------- TICKET (signature) ---------- */
+.tickets{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.ticket{--ta:#4b3fd6;--tb:#6d5ce6;all:unset;display:flex;border-radius:16px;overflow:hidden;cursor:pointer;
+  background:#fff;border:1px solid var(--line);box-shadow:0 10px 26px -18px rgba(22,32,58,.5);
+  transition:transform .16s,box-shadow .16s,border-color .16s;position:relative;opacity:0;animation:rise .5s ease both}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.ticket:hover{transform:translateY(-4px);box-shadow:0 22px 40px -22px rgba(22,32,58,.6)}
+.ticket:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.ticket .main{flex:1;min-width:0;display:flex;flex-direction:column}
+.ticket .band{background:linear-gradient(135deg,var(--ta),var(--tb));color:#fff;padding:12px 16px;
+  display:flex;align-items:center;justify-content:space-between}
+.ticket .band .rt{font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;opacity:.95}
+.ticket .band .no{font-family:var(--font-mono);font-weight:700;font-size:13px}
+.ticket .body{padding:14px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+.ticket .ttl{font-family:var(--font-display);font-weight:700;font-size:16px;line-height:1.35}
+.ticket .desc{font-size:13px;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ticket .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+.ticket .countline{display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--ink)}
+.bar{flex:1;height:6px;border-radius:99px;background:#eef1f8;overflow:hidden}
+.bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--ta),var(--tb))}
+/* perforated stub */
+.ticket .stub{width:62px;flex:none;border-left:2px dashed var(--line);position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#fcfdff;color:var(--ink-soft)}
+.ticket .stub::before,.ticket .stub::after{content:"";position:absolute;left:-9px;width:16px;height:16px;border-radius:50%;
+  background:var(--paper);border:1px solid var(--line)}
+.ticket .stub::before{top:-9px}.ticket .stub::after{bottom:-9px}
+.ticket .stub .lab{writing-mode:vertical-rl;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;font-weight:700}
+.ticket .stub .chk{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;color:transparent;transition:.16s}
+.ticket.sel{border-color:transparent;box-shadow:0 0 0 3px var(--ta),0 22px 40px -20px rgba(22,32,58,.55)}
+.ticket.sel .stub{background:linear-gradient(135deg,var(--ta),var(--tb));color:#fff;border-left-color:transparent}
+.ticket.sel .stub .chk{border-color:#fff;background:#fff;color:var(--ta)}
+.ticket.full{opacity:.55;cursor:not-allowed;filter:grayscale(.4)}
+.ticket.full:hover{transform:none}
+.full-stamp{position:absolute;top:14px;right:70px;transform:rotate(-12deg);border:2px solid var(--hanko);color:var(--hanko);
+  font-family:var(--font-display);font-weight:900;font-size:13px;padding:2px 8px;border-radius:6px;letter-spacing:.06em;background:#fff}
+
+/* selected confirmed boarding pass */
+.boardingpass{--ta:#4b3fd6;--tb:#6d5ce6;display:flex;border-radius:20px;overflow:hidden;background:#fff;
+  box-shadow:var(--shadow);border:1px solid var(--line);position:relative}
+.boardingpass .bp-main{flex:1;padding:24px 26px}
+.boardingpass .bp-main .rt{font-family:var(--font-mono);font-size:12px;letter-spacing:.16em;color:var(--ink-soft)}
+.boardingpass .bp-main h3{font-family:var(--font-display);font-weight:900;font-size:clamp(20px,3.4vw,28px);margin:8px 0 4px;line-height:1.25}
+.boardingpass .bp-main .who{font-size:13px;color:var(--ink-soft);margin-top:12px}
+.boardingpass .bp-stub{width:150px;flex:none;background:linear-gradient(150deg,var(--ta),var(--tb));
+  display:grid;place-items:center;border-left:2px dashed #ffffff66;position:relative}
+.boardingpass .bp-stub::before,.boardingpass .bp-stub::after{content:"";position:absolute;left:-10px;width:18px;height:18px;border-radius:50%;background:var(--paper)}
+.boardingpass .bp-stub::before{top:-10px}.boardingpass .bp-stub::after{bottom:-10px}
+.hanko{width:94px;height:94px;border-radius:50%;border:3px solid #fff;color:#fff;display:grid;place-items:center;text-align:center;
+  font-family:var(--font-display);font-weight:900;line-height:1.15;transform:rotate(-9deg);
+  box-shadow:0 0 0 4px #ffffff33 inset;animation:stamp .5s cubic-bezier(.2,1.4,.4,1) both}
+.hanko small{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;opacity:.9;margin-top:2px}
+@keyframes stamp{0%{transform:rotate(-9deg) scale(2.4);opacity:0}60%{opacity:1}100%{transform:rotate(-9deg) scale(1);opacity:1}}
+
+/* sticky apply bar */
+.applybar{position:sticky;bottom:0;z-index:20;margin:8px -18px -2px;padding:14px 18px;
+  background:linear-gradient(#eaeefb00,var(--paper) 36%);display:flex;gap:12px;align-items:center}
+.applybar .sel-name{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* result state */
+.resultbox{text-align:center;padding:30px 20px}
+.resultbox .icon{font-size:40px}
+
+/* ---------- admin ---------- */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 16px}
+.tab{font-family:var(--font-body);font-weight:700;font-size:14px;padding:9px 16px;border-radius:999px;cursor:pointer;
+  background:#fff;border:1px solid var(--line);color:var(--ink-soft)}
+.tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+label{display:block;font-size:13px;color:var(--ink-soft);font-weight:700;margin:10px 0 4px}
+input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+textarea{min-height:80px;resize:vertical}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+th{color:var(--ink-soft);font-weight:700;font-size:12px;letter-spacing:.02em}
+.grid-prog{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.pcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.pcard .ph{height:8px;background:linear-gradient(90deg,var(--ta,#4b3fd6),var(--tb,#6d5ce6))}
+.pcard .pc{padding:13px}
+.pcard .pt{font-family:var(--font-display);font-weight:700;font-size:14px;line-height:1.35}
+.hint{background:#eef0ff;border:1px solid #d8d4ff;border-radius:12px;padding:12px 14px;font-size:13px;color:#3b328c;margin:10px 0}
+.hint code{background:#fff;padding:1px 5px;border-radius:4px;font-family:var(--font-mono);font-size:12px}
+.ok{color:var(--success);font-size:13px;font-weight:700}
+.err{color:var(--hanko);font-size:13px;font-weight:700}
+.diag{font-family:var(--font-mono);font-size:12px;background:#fbeceb;border:1px solid #f6cfcb;color:#9c2b25;
+  padding:10px 12px;border-radius:10px;word-break:break-all;text-align:left;margin-top:10px}
+
+/* dialog */
+dialog{border:0;border-radius:18px;padding:0;max-width:560px;width:92%;box-shadow:var(--shadow)}
+dialog::backdrop{background:#16203a66;backdrop-filter:blur(2px)}
+dialog .dc{padding:22px}
+dialog h2{font-family:var(--font-display);font-size:18px;margin:0 0 6px}
+
+.loading{display:grid;place-items:center;min-height:50vh;color:var(--ink-soft)}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--primary);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+@media (max-width:560px){
+  .row2,.row3{grid-template-columns:1fr}
+  .boardingpass{flex-direction:column}
+  .boardingpass .bp-stub{width:auto;height:120px;border-left:0;border-top:2px dashed #ffffff66}
+  .boardingpass .bp-stub::before{left:-10px;top:auto;bottom:-10px}
+  .boardingpass .bp-stub::after{left:auto;right:-10px;top:-10px;bottom:auto}
+  .full-stamp{right:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
 </style>
 </head>
 <body>
-<header><div class="bar">
-  <h1>修学旅行 プログラム選択</h1>
-  <div class="who" id="who"></div>
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="dot"></span>修学旅行 プログラムさがし</div>
+  <div class="right" id="hdr-right"></div>
 </div></header>
-<main id="app"><div class="center muted">読み込み中…</div></main>
+
+<main class="wrap" id="app"><div class="loading"><div class="spin"></div></div></main>
+
+<dialog id="dlg"><div class="dc" id="dlgbody"></div></dialog>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, getDocs, collection, query, where,
-  orderBy, getCountFromServer, serverTimestamp, Timestamp }
+import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, getDocs,
+  collection, query, where, orderBy, getCountFromServer, writeBatch, serverTimestamp, Timestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const $app = document.getElementById('app');
-const $who = document.getElementById('who');
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+const $app=document.getElementById('app'), $hdr=document.getElementById('hdr-right');
+const dlg=document.getElementById('dlg'), dlgbody=document.getElementById('dlgbody');
+let XLSXp=null; const loadXLSX=()=> (XLSXp ??= import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm"));
 
-const ROUND_LABEL = { round1:"第一次抽選", round2:"第二次抽選", final:"最終抽選" };
+const ROUND_LABEL={round1:"第一次抽選",round2:"第二次抽選",final:"最終抽選"};
+const TICKET_COLORS=[
+ ['#ff6f61','#ffa177'],['#1aa896','#41e6a4'],['#f2a13b','#ffd36b'],['#7b4dff','#b18cff'],
+ ['#ff5e8a','#ff9bb3'],['#2bb673','#84e6ad'],['#3a9bff','#7bd0ff'],['#9b5de5','#c89bf5']];
+const tcolor=i=>TICKET_COLORS[(i-1+TICKET_COLORS.length)%TICKET_COLORS.length]||TICKET_COLORS[0];
 
-let state = { user:null, student:null, programs:[], config:null, application:null, result:null, counts:{} };
+let user=null, wantAdmin=false, role={admin:false,student:false}, tickInt=null;
+let me={}, cache={programs:[],students:[],applications:[],results:[],config:null}, counts={};
 
-// ---------- 認証 ----------
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { renderLogin(); return; }
-  state.user = user;
-  $who.innerHTML = `${esc(user.displayName||user.email)}<br><a href="#" id="lo">ログアウト</a>`;
-  document.getElementById('lo').onclick = (e)=>{e.preventDefault();signOut(auth);};
-  await loadAll();
+// PDF由来の初期8プログラム
+const SEED=[
+ {name:"耕作放棄地を解消する 新しい農業プログラム",description:"全国40万haの耕作放棄地のうち8万haは都市近郊。レンタル農園を営む京都の農業ベンチャーに学び、農作業も体験する。",tags:"耕作放棄地/第一次産業/農ある暮らし"},
+ {name:"SNSで挑む ごみ問題解決プログラム",description:"自然界へ流出するごみ問題を、テクノロジーの力と自分にできることから考える。SNS活用とごみ拾いを体験。",tags:"ごみ問題/プラスチック/SNS"},
+ {name:"空き家リノベで「住む京都」を考えるプログラム",description:"町家の空き家問題。職住一体の拠点を訪ね、移住支援団体と「住みやすい地域」を描く。",tags:"空き家/地域コミュニティ/暮らし"},
+ {name:"太陽光から自然エネルギーの未来を見るプログラム",description:"日本の自然エネルギー利用率の低さを背景に、ソーラーシェアリングを見学し再エネ拡大を考える。",tags:"再生可能エネルギー/脱炭素/気候変動"},
+ {name:"伝統産業の技と継承をたどるプログラム",description:"学生起業家のベンチャーで、伝統工芸の造り方や化学的知見にふれ、受け継ぐ意味を考える。",tags:"伝統産業/後継者不足/職人"},
+ {name:"作業療法士＆芸人と巡る 新しい介護プログラム",description:"『人生のラストに笑いと生きがいを』。レクリエーションで健康を届ける現場から介護を考える。",tags:"高齢化社会/作業療法士/介護"},
+ {name:"コミュニティナースと歩く 地域医療プログラム",description:"暮らしの身近な存在として健康を支えるコミュニティナースに学び、地域医療のあり方を考える。",tags:"地域医療/高齢化/コミュニティナース"},
+ {name:"アスリートの引退後を考えるプログラム",description:"アスリートのキャリア支援企業に話を聞き、引退後も豊かに歩む条件を疑似ワークで探る。",tags:"アスリート/デュアルキャリア/多様性"}];
+
+// ================= 認証・ルーティング =================
+onAuthStateChanged(auth, async (u)=>{
+  user=u;
+  if(!u){ role={admin:false,student:false}; renderHeader(); return route(); }
+  const email=u.email;
+  const [a,s]=await Promise.all([ getDoc(doc(db,'admins',email)), getDoc(doc(db,'students',email)) ]);
+  role.admin = a.exists() && a.data().active===true;
+  role.adminDoc = a.exists()? a.data() : null;
+  role.student = s.exists();
+  me = s.exists()? {id:email,...s.data()} : {id:email,name:u.displayName||email};
+  renderHeader();
+  await route();
 });
 
+function renderHeader(){
+  if(!user){
+    $hdr.innerHTML=`<button class="adminbtn" id="hb-admin">🔑 管理者</button>`;
+    document.getElementById('hb-admin').onclick=goAdmin;
+    return;
+  }
+  const inAdmin = currentScreen==='admin';
+  $hdr.innerHTML=`
+    ${inAdmin?`<button class="linkbtn" id="hb-stu">生徒画面</button>`:`<button class="adminbtn" id="hb-admin">🔑 管理者</button>`}
+    <span class="userchip"><b>${esc(me.name||user.email)}</b><button class="linkbtn" id="hb-out">ログアウト</button></span>`;
+  const ad=document.getElementById('hb-admin'); if(ad) ad.onclick=goAdmin;
+  const st=document.getElementById('hb-stu'); if(st) st.onclick=()=>{wantAdmin=false;route();};
+  document.getElementById('hb-out').onclick=()=>signOut(auth);
+}
+
+async function goAdmin(){
+  wantAdmin=true;
+  if(!user){ try{ await signInWithPopup(auth,new GoogleAuthProvider()); }catch(e){} return; }
+  route();
+}
+
+let currentScreen=null;
+async function route(){
+  stopTick();
+  if(!user){ currentScreen='login'; renderHeader(); return renderLogin(); }
+  if(wantAdmin){
+    if(role.admin){ currentScreen='admin'; renderHeader(); await loadAdmin(); return renderAdmin(); }
+    currentScreen='adminDenied'; renderHeader(); return renderAdminDenied();
+  }
+  if(role.student){ currentScreen='student'; renderHeader(); return renderStudent(); }
+  if(role.admin){ currentScreen='admin'; renderHeader(); await loadAdmin(); return renderAdmin(); }
+  currentScreen='notRegistered'; renderHeader(); return renderNotRegistered();
+}
+
+// ================= ログイン / エラー画面 =================
 function renderLogin(){
-  $who.textContent = "";
-  $app.innerHTML = `<div class="card center">
-    <p class="big">ようこそ</p>
-    <p class="muted">学校から配布された Google アカウントでログインしてください。</p>
-    <button class="btn btn-primary" id="gl">Google でログイン</button>
-    <p class="err" id="loginerr"></p>
-  </div>`;
-  document.getElementById('gl').onclick = async () => {
-    try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-    catch(e){ document.getElementById('loginerr').textContent = "ログインに失敗しました: "+e.message; }
+  $app.innerHTML=`
+    <div class="hero">
+      <p class="eyebrow">SCHOOL TRIP · KYOTO / OSAKA</p>
+      <h1>どの理数プログラムを選ぶ？</h1>
+      <p>気になるプログラムをチケットのように選んで申し込み。抽選の結果もここで確認できます。</p>
+      <span class="route"><span>KYOTO</span><span class="ln"></span><span>OSAKA</span></span>
+    </div>
+    <div class="card center">
+      <h2 style="font-family:var(--font-display);margin:0 0 6px">学校のアカウントでログイン</h2>
+      <p class="muted" style="margin:0 0 16px">配布された Google アカウントでログインしてください。</p>
+      <button class="btn btn-primary btn-lg" id="gl">Google でログイン</button>
+      <p class="err" id="lerr"></p>
+    </div>`;
+  document.getElementById('gl').onclick=async()=>{
+    try{ await signInWithPopup(auth,new GoogleAuthProvider()); }
+    catch(e){ document.getElementById('lerr').textContent='ログインに失敗しました: '+e.message; }
   };
 }
+function renderNotRegistered(){
+  $app.innerHTML=`<div class="card resultbox">
+    <div class="icon">🎫</div>
+    <h2 style="font-family:var(--font-display)">このアカウントは名簿にありません</h2>
+    <p class="muted">ログイン中: <b>${esc(user.email)}</b><br>このアドレスが名簿に登録されているか、先生に確認してください。</p>
+    <button class="btn btn-ghost" id="sw">別のアカウントでログイン</button>
+  </div>`;
+  document.getElementById('sw').onclick=()=>signOut(auth);
+}
+function renderAdminDenied(){
+  // 権限がない正確な理由を表示（自己診断用）
+  let reason;
+  if(!role.adminDoc) reason=`admins コレクションに「${user.email}」というIDのドキュメントが見つかりません。\n→ ドキュメントID がログイン中のメールと完全一致しているか確認してください（自動IDになっていない／大文字小文字・余分な空白に注意）。`;
+  else if(role.adminDoc.active!==true) reason=`ドキュメントは存在しますが active が true ではありません（現在: ${JSON.stringify(role.adminDoc.active)}）。\n→ active を 真偽値の true（文字列の "true" ではない）にしてください。`;
+  else reason='不明な理由です。Firestore ルールが反映されているか確認してください。';
+  $app.innerHTML=`<div class="card resultbox">
+    <div class="icon">🔒</div>
+    <h2 style="font-family:var(--font-display)">管理者として認証できませんでした</h2>
+    <p class="muted">ログイン中: <b>${esc(user.email)}</b></p>
+    <div class="diag">${esc(reason)}</div>
+    <div class="toolbar" style="justify-content:center;margin-top:16px">
+      <button class="btn btn-ghost" id="rt">再確認</button>
+      <button class="btn btn-ghost" id="sw">別アカウントでログイン</button>
+    </div>
+  </div>`;
+  document.getElementById('rt').onclick=()=>location.reload();
+  document.getElementById('sw').onclick=()=>signOut(auth);
+}
 
-// ---------- データ取得 ----------
-async function loadAll(){
-  $app.innerHTML = `<div class="center muted">読み込み中…</div>`;
-  const email = state.user.email;
-  try {
-    const sSnap = await getDoc(doc(db,'students',email));
-    if (!sSnap.exists()){
-      $app.innerHTML = `<div class="card center">
-        <p class="big">未登録のアカウントです</p>
-        <p class="muted">このアカウントは名簿に登録されていません。先生に確認してください。</p>
-        <button class="btn btn-ghost" id="so">別アカウントでログイン</button>
-      </div>`;
-      document.getElementById('so').onclick = ()=>signOut(auth);
-      return;
-    }
-    state.student = { id:email, ...sSnap.data() };
-
-    const cfgSnap = await getDoc(doc(db,'config','lottery'));
-    state.config = cfgSnap.exists() ? cfgSnap.data() : null;
-
-    const pSnap = await getDocs(query(collection(db,'programs'), orderBy('order')));
-    state.programs = pSnap.docs.map(d=>({id:d.id, ...d.data()}));
-
-    const aSnap = await getDoc(doc(db,'applications',email));
-    state.application = aSnap.exists() ? aSnap.data() : null;
-
-    const rSnap = await getDoc(doc(db,'results',email));
-    state.result = rSnap.exists() ? rSnap.data() : null;
-
-    await loadCounts();
-    renderDashboard();
-  } catch(e){
-    $app.innerHTML = `<div class="card"><p class="err">読み込みエラー: ${esc(e.message)}</p>
+// ================= 生徒画面 =================
+async function renderStudent(){
+  $app.innerHTML=`<div class="loading"><div class="spin"></div></div>`;
+  try{
+    const email=user.email;
+    const [cfg,pg,ap,rs]=await Promise.all([
+      getDoc(doc(db,'config','lottery')),
+      getDocs(query(collection(db,'programs'),orderBy('order'))).catch(()=>getDocs(collection(db,'programs'))),
+      getDoc(doc(db,'applications',email)),
+      getDoc(doc(db,'results',email)),
+    ]);
+    cache.config=cfg.exists()?cfg.data():null;
+    cache.programs=pg.docs.map(d=>({id:d.id,...d.data()}));
+    cache.application=ap.exists()?ap.data():null;
+    cache.result=rs.exists()?rs.data():null;
+    await loadCountsCurrent();
+    paintStudent();
+  }catch(e){
+    $app.innerHTML=`<div class="card"><p class="err">読み込みエラー: ${esc(e.message)}</p>
       <button class="btn btn-ghost" id="rt">再読み込み</button></div>`;
-    document.getElementById('rt').onclick = loadAll;
+    document.getElementById('rt').onclick=renderStudent;
   }
 }
-
-async function loadCounts(){
-  // 現在の回の申込人数を各プログラムごとに集計（集計クエリ＝読み取り少）
-  state.counts = {};
-  const round = state.config?.currentRound || 'round1';
-  for (const p of state.programs){
-    try{
-      const cs = await getCountFromServer(query(collection(db,'applications'),
-        where('programId','==',p.id), where('round','==',round)));
-      state.counts[p.id] = cs.data().count;
-    }catch{ state.counts[p.id] = null; }
-  }
+async function loadCountsCurrent(){
+  counts={}; const round=cache.config?.currentRound||'round1';
+  await Promise.all(cache.programs.map(async p=>{
+    try{ const cs=await getCountFromServer(query(collection(db,'applications'),
+      where('programId','==',p.id),where('round','==',round))); counts[p.id]=cs.data().count; }
+    catch{ counts[p.id]=null; }
+  }));
 }
 
-// ---------- 画面 ----------
-function renderDashboard(){
-  const cfg = state.config;
-  const r = state.result;
-
-  // 1) 確定済み
-  if (r && r.status === 'confirmed'){
-    const prog = state.programs.find(p=>p.id===r.programId);
-    $app.innerHTML = `
-      <div class="card center">
-        <span class="pill pill-ok">参加プログラム確定</span>
-        <p class="big" style="margin:14px 0 4px">${esc(prog?.name||'(不明)')}</p>
-        <p class="muted">${ROUND_LABEL[r.round]||''}で決定しました。</p>
+function paintStudent(){
+  stopTick();
+  const cfg=cache.config, r=cache.result;
+  // 確定
+  if(r && r.status==='confirmed'){
+    const i=cache.programs.findIndex(p=>p.id===r.programId), p=cache.programs[i]||{};
+    const [a,b]=tcolor((p.order)|| (i+1));
+    $app.innerHTML=`
+      <div class="section-h"><h2>あなたのプログラム、確定！</h2><span class="sub">${ROUND_LABEL[r.round]||''}で決定しました</span></div>
+      <div class="boardingpass" style="--ta:${a};--tb:${b}">
+        <div class="bp-main">
+          <span class="rt">PROGRAM PASS · KYOTO / OSAKA</span>
+          <h3>${esc(p.name||'(プログラム)')}</h3>
+          <p class="muted" style="margin:6px 0 0">${esc(p.description||'')}</p>
+          <div class="who">${esc(me.class||'')}組 ${esc(me.number||'')}番 ・ ${esc(me.name||'')}</div>
+        </div>
+        <div class="bp-stub"><div class="hanko">確定<small>${esc(ROUND_LABEL[r.round]||'CONFIRMED')}</small></div></div>
       </div>
-      ${prog ? progCardStatic(prog) : ''}`;
+      <p class="muted center" style="margin-top:14px">当日を楽しみに！変更はできません。</p>`;
     return;
   }
-
-  if (!cfg){
-    $app.innerHTML = `<div class="card center muted">抽選日程がまだ設定されていません。先生からの案内をお待ちください。</div>`;
+  if(!cfg){
+    $app.innerHTML=`<div class="card resultbox"><div class="icon">🗓️</div>
+      <h2 style="font-family:var(--font-display)">まもなく受付スタート</h2>
+      <p class="muted">抽選の日程が設定されると、ここから申し込めます。</p></div>`;
     return;
   }
+  const round=cfg.currentRound, done=cfg[round+'Done'], deadline=cfg[round+'At'];
 
-  const round = cfg.currentRound;            // 現在受付中の回
-  const roundDone = cfg[round+'Done'];       // その回の抽選が実行済みか
-  const deadline = cfg[round+'At'];          // 締切 Timestamp
-
-  // 2) この回の抽選が実行済み（＝自分は今のところ落選 or 未処理）→ 結果待ち or 次回案内
-  if (roundDone){
-    const lostHere = r && r.status==='lost' && r.round===round;
-    $app.innerHTML = `<div class="card center">
-      <span class="pill pill-warn">抽選結果</span>
-      <p class="big" style="margin:14px 0 6px">${lostHere ? 'このプログラムは抽選で外れました' : '今回は当選しませんでした'}</p>
-      <p class="muted">次の抽選の受付開始までお待ちください。受付が始まったら、このページから再度申し込めます。</p>
-      <button class="btn btn-ghost" id="rl">最新の状態に更新</button>
-    </div>`;
-    document.getElementById('rl').onclick = loadAll;
+  if(done){
+    const lost=r&&r.status==='lost'&&r.round===round;
+    $app.innerHTML=`<div class="card resultbox"><div class="icon">${lost?'🎲':'⏳'}</div>
+      <h2 style="font-family:var(--font-display)">${lost?'今回は抽選で外れました':'まだ確定していません'}</h2>
+      <p class="muted">次の抽選の受付がはじまると、このページから再び申し込めます。</p>
+      <button class="btn btn-ghost" id="rl" style="margin-top:8px">最新の状態にする</button></div>`;
+    document.getElementById('rl').onclick=renderStudent;
     return;
   }
-
-  // 3) 受付中：申込／修正 UI
-  renderApply(round, deadline);
+  paintApply(round,deadline);
 }
 
-function renderApply(round, deadline){
-  const myPid = state.application && state.application.round===round ? state.application.programId : null;
-  const isModify = !!myPid;
-  const lostBefore = state.result && state.result.status==='lost';
-  const dl = deadline ? fmt(deadline) : '未設定';
+function paintApply(round,deadline){
+  const myPid=cache.application&&cache.application.round===round?cache.application.programId:null;
+  const isModify=!!myPid, lostBefore=cache.result&&cache.result.status==='lost';
 
-  const list = state.programs.map(p=>{
-    const cnt = state.counts[p.id];
-    const full = (round!=='round1') && typeof cnt==='number' && cnt>=p.capacity; // 2回目以降は満員に申込不可
-    const sel = p.id===myPid;
-    const cntTxt = cnt==null ? '—' : `${cnt} / ${p.capacity} 名`;
-    const cntCls = (typeof cnt==='number' && cnt>=p.capacity) ? 'pill-bad' : 'pill-info';
-    return `<div class="prog ${sel?'sel':''} ${full?'full':''}" data-id="${esc(p.id)}">
-      <div class="row">
-        ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="">`:`<div style="width:96px;height:72px;border-radius:8px;background:#eef1f6;flex:none"></div>`}
-        <div>
+  const list=cache.programs.map((p,i)=>{
+    const [a,b]=tcolor(p.order||(i+1));
+    const cnt=counts[p.id]; const cap=+p.capacity||0;
+    const isFull=(round!=='round1')&&typeof cnt==='number'&&cnt>=cap;
+    const pct=cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0;
+    const tags=(p.tags||'').split('/').filter(Boolean).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+    return `<button class="ticket ${p.id===myPid?'sel':''} ${isFull?'full':''}" data-id="${esc(p.id)}"
+      style="--ta:${a};--tb:${b};animation-delay:${i*60}ms" ${isFull?'disabled':''}>
+      <div class="main">
+        <div class="band"><span class="rt">KYOTO ◦ OSAKA</span><span class="no">No.${String(p.order||i+1).padStart(2,'0')}</span></div>
+        <div class="body">
           <div class="ttl">${esc(p.name)}</div>
-          <div class="meta"><span class="pill ${cntCls}">申込 ${cntTxt}</span> ${full?'<span class="pill pill-bad">満員・募集終了</span>':''}</div>
           <div class="desc">${esc(p.description||'')}</div>
+          <div class="tags">${tags}</div>
+          <div class="countline"><div class="bar"><i style="width:${pct}%"></i></div><span>${cnt==null?'—':cnt}/${cap}</span></div>
         </div>
       </div>
-    </div>`;
+      <div class="stub"><span class="lab">SELECT</span><span class="chk">✓</span></div>
+      ${isFull?'<span class="full-stamp">満員</span>':''}
+    </button>`;
   }).join('');
 
-  $app.innerHTML = `
-    <div class="card">
-      <span class="pill pill-info">${ROUND_LABEL[round]||''} 受付中</span>
-      <span class="deadline" style="margin-left:8px">締切: ${esc(dl)}</span>
-      <p class="muted" style="margin:10px 0 0">
-        ${isModify ? '現在の申込内容を表示しています。締切までは何度でも修正できます。'
-                   : (lostBefore ? '前回は抽選で外れました。空きのあるプログラムから申し込んでください。'
-                                 : '参加したいプログラムを1つ選んで申し込んでください。')}
-      </p>
-    </div>
-    <div class="card">
-      <div class="plist" id="plist">${list}</div>
-      <div class="sticky-actions">
-        <span class="muted" id="selinfo" style="margin-right:auto;align-self:center"></span>
-        <button class="btn btn-primary" id="submit" disabled>${isModify?'修正する':'申し込む'}</button>
+  $app.innerHTML=`
+    <div class="hero">
+      <p class="eyebrow">${ROUND_LABEL[round]||''} ・ 受付中</p>
+      <h1>どの理数プログラムを選ぶ？</h1>
+      <div class="phase">
+        <span class="now">${esc(me.name||'')}さん、${isModify?'申込みを確認・変更できます':'気になるプログラムを選ぼう'}</span>
+        ${deadline?`<span class="countdown" id="cd">締切まで --:--</span>`:''}
       </div>
-      <p class="err" id="apperr"></p>
-    </div>`;
+      ${lostBefore?`<p>前回は抽選で外れました。空きのあるプログラムから選んでください。</p>`:''}
+    </div>
+    <div class="tickets" id="tk">${list}</div>
+    <div class="applybar">
+      <span class="sel-name muted" id="seln">プログラムを1つ選んでください</span>
+      <button class="btn btn-primary" id="submit" disabled>${isModify?'申込みを変更':'このプログラムに申し込む'}</button>
+    </div>
+    <p class="err center" id="aerr"></p>`;
 
-  let chosen = myPid;
-  const $submit = document.getElementById('submit');
-  const $info = document.getElementById('selinfo');
-  function refresh(){
-    document.querySelectorAll('.prog').forEach(el=>{
-      el.classList.toggle('sel', el.dataset.id===chosen);
-    });
-    const p = state.programs.find(x=>x.id===chosen);
-    const unchanged = isModify && chosen===myPid;
-    $submit.disabled = !chosen || unchanged;
-    $info.textContent = p ? (`選択中: ${p.name}` + (unchanged?'（変更なし）':'')) : '';
-  }
-  document.querySelectorAll('.prog').forEach(el=>{
-    el.onclick = ()=>{
-      if (el.classList.contains('full')) return;
-      chosen = el.dataset.id; refresh();
-    };
-  });
+  if(deadline) startTick(deadline);
+
+  let chosen=myPid;
+  const $sb=document.getElementById('submit'), $sn=document.getElementById('seln');
+  const refresh=()=>{
+    document.querySelectorAll('.ticket').forEach(el=>el.classList.toggle('sel',el.dataset.id===chosen));
+    const p=cache.programs.find(x=>x.id===chosen);
+    const unchanged=isModify&&chosen===myPid;
+    $sb.disabled=!chosen||unchanged;
+    $sn.textContent=p?(`選択中：${p.name}`+(unchanged?'（変更なし）':'')):'プログラムを1つ選んでください';
+    $sn.classList.toggle('muted',!chosen);
+  };
+  document.querySelectorAll('.ticket').forEach(el=>el.onclick=()=>{ if(el.classList.contains('full'))return; chosen=el.dataset.id; refresh(); });
   refresh();
 
-  $submit.onclick = async ()=>{
-    if(!chosen) return;
-    $submit.disabled=true; $submit.textContent='送信中…';
+  $sb.onclick=async()=>{
+    if(!chosen)return; $sb.disabled=true; const t=$sb.textContent; $sb.textContent='送信中…';
     try{
-      // 締切チェック（クライアント側）
-      if (deadline && deadline.toMillis && Date.now() > deadline.toMillis()){
-        throw new Error('締切を過ぎています。');
-      }
-      await setDoc(doc(db,'applications',state.user.email),{
-        studentEmail: state.user.email,
-        programId: chosen,
-        round,
-        updatedAt: serverTimestamp(),
-      });
-      await loadAll();
-    }catch(e){
-      document.getElementById('apperr').textContent = '送信に失敗しました: '+e.message;
-      $submit.disabled=false; $submit.textContent=isModify?'修正する':'申し込む';
-    }
+      if(deadline?.toMillis && Date.now()>deadline.toMillis()) throw new Error('締切を過ぎています。');
+      await setDoc(doc(db,'applications',user.email),{studentEmail:user.email,programId:chosen,round,updatedAt:serverTimestamp()});
+      await renderStudent();
+    }catch(e){ document.getElementById('aerr').textContent='送信に失敗しました: '+e.message; $sb.disabled=false; $sb.textContent=t; }
   };
 }
 
-function progCardStatic(p){
-  return `<div class="card"><div class="prog"><div class="row">
-    ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="">`:''}
-    <div><div class="ttl">${esc(p.name)}</div><div class="desc">${esc(p.description||'')}</div></div>
-  </div></div></div>`;
+function startTick(deadline){
+  const el=document.getElementById('cd'); if(!el||!deadline?.toMillis)return;
+  const upd=()=>{
+    const ms=deadline.toMillis()-Date.now();
+    if(ms<=0){ el.textContent='締切'; el.style.background='#e0392f33'; stopTick(); return; }
+    const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60), ss=s%60;
+    const p=n=>String(n).padStart(2,'0');
+    el.textContent='締切まで '+(d>0?`${d}日 `:'')+`${p(h)}:${p(m)}:${p(ss)}`;
+  };
+  upd(); tickInt=setInterval(upd,1000);
+}
+function stopTick(){ if(tickInt){clearInterval(tickInt);tickInt=null;} }
+
+// ================= 管理者画面 =================
+let activeTab='programs';
+async function loadAdmin(){
+  const [pg,st,ap,rs,cf]=await Promise.all([
+    getDocs(query(collection(db,'programs'),orderBy('order'))).catch(()=>getDocs(collection(db,'programs'))),
+    getDocs(collection(db,'students')), getDocs(collection(db,'applications')),
+    getDocs(collection(db,'results')), getDoc(doc(db,'config','lottery')),
+  ]);
+  cache.programs=pg.docs.map(d=>({id:d.id,...d.data()}));
+  cache.students=st.docs.map(d=>({id:d.id,...d.data()}));
+  cache.applications=ap.docs.map(d=>({id:d.id,...d.data()}));
+  cache.results=rs.docs.map(d=>({id:d.id,...d.data()}));
+  cache.config=cf.exists()?cf.data():null;
+}
+function renderAdmin(){
+  const tabs=[['programs','プログラム'],['students','生徒名簿'],['lottery','抽選'],['export','名簿出力']];
+  $app.innerHTML=`
+    <div class="section-h"><h2>管理ダッシュボード</h2><span class="sub">${esc(user.email)}</span></div>
+    <div class="tabs">${tabs.map(([k,l])=>`<div class="tab ${activeTab===k?'active':''}" data-t="${k}">${l}</div>`).join('')}</div>
+    <div id="view"></div>`;
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{activeTab=t.dataset.t;renderAdmin();});
+  ({programs:viewPrograms,students:viewStudents,lottery:viewLottery,export:viewExport}[activeTab])();
 }
 
-// ---------- utils ----------
+function viewPrograms(){
+  const v=document.getElementById('view');
+  const conf=pid=>cache.results.filter(r=>r.status==='confirmed'&&r.programId===pid).length;
+  const totalCap=cache.programs.reduce((s,p)=>s+(+p.capacity||0),0);
+  v.innerHTML=`<div class="card">
+    <div class="toolbar">
+      <button class="btn btn-primary" id="add">＋ プログラムを追加</button>
+      ${cache.programs.length===0?`<button class="btn btn-ghost" id="seed">添付PDFの8件を投入</button>`:''}
+    </div>
+    <p class="muted">登録 ${cache.programs.length} 件 ／ 定員合計 <b>${totalCap}</b> 名 ／ 生徒 ${cache.students.length} 名
+      ${totalCap<cache.students.length?'<span class="pill pill-bad">定員不足</span>':'<span class="pill pill-ok">充足</span>'}</p>
+    <div class="grid-prog">${cache.programs.map((p,i)=>{const[a,b]=tcolor(p.order||(i+1));return `
+      <div class="pcard" style="--ta:${a};--tb:${b}"><div class="ph"></div><div class="pc">
+        <div class="pt">${esc(p.name)}</div>
+        <div class="muted" style="margin:6px 0">定員 ${esc(p.capacity)}／確定 ${conf(p.id)}</div>
+        <div class="toolbar"><button class="btn btn-ghost" data-edit="${esc(p.id)}">編集</button>
+        <button class="btn btn-bad" data-del="${esc(p.id)}">削除</button></div>
+      </div></div>`;}).join('')}</div></div>`;
+  document.getElementById('add').onclick=()=>progDialog(null);
+  const sb=document.getElementById('seed'); if(sb) sb.onclick=async()=>{
+    const batch=writeBatch(db);
+    SEED.forEach((p,i)=>batch.set(doc(collection(db,'programs')),{...p,capacity:40,imageUrl:'',order:i+1}));
+    await batch.commit(); await loadAdmin(); renderAdmin();
+  };
+  v.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>progDialog(cache.programs.find(p=>p.id===b.dataset.edit)));
+  v.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('このプログラムを削除しますか？'))return; await deleteDoc(doc(db,'programs',b.dataset.del)); await loadAdmin(); renderAdmin();});
+}
+function progDialog(p){
+  const isNew=!p;
+  dlgbody.innerHTML=`<h2>${isNew?'プログラムを追加':'プログラムを編集'}</h2>
+    <label>プログラム名</label><input id="f-name" value="${esc(p?.name||'')}">
+    <label>内容</label><textarea id="f-desc">${esc(p?.description||'')}</textarea>
+    <div class="row2"><div><label>定員</label><input id="f-cap" type="number" min="0" value="${esc(p?.capacity??40)}"></div>
+    <div><label>表示順</label><input id="f-order" type="number" value="${esc(p?.order??(cache.programs.length+1))}"></div></div>
+    <label>画像URL（任意・空欄ならカラーで表示）</label><input id="f-img" value="${esc(p?.imageUrl||'')}">
+    <label>タグ（/区切り）</label><input id="f-tags" value="${esc(p?.tags||'')}">
+    <p class="err" id="f-err"></p>
+    <div class="toolbar" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-ghost" id="f-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="f-save">保存</button></div>`;
+  dlg.showModal();
+  document.getElementById('f-cancel').onclick=()=>dlg.close();
+  document.getElementById('f-save').onclick=async()=>{
+    const data={name:val('f-name').trim(),description:val('f-desc').trim(),capacity:+val('f-cap')||0,
+      order:+val('f-order')||0,imageUrl:val('f-img').trim(),tags:val('f-tags').trim()};
+    if(!data.name){document.getElementById('f-err').textContent='プログラム名は必須です';return;}
+    try{ isNew?await addDoc(collection(db,'programs'),data):await updateDoc(doc(db,'programs',p.id),data);
+      dlg.close(); await loadAdmin(); renderAdmin();
+    }catch(e){document.getElementById('f-err').textContent='保存失敗: '+e.message;}
+  };
+}
+
+function viewStudents(){
+  const v=document.getElementById('view');
+  v.innerHTML=`<div class="card">
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 6px">生徒名簿（ログイン許可リスト）</h2>
+    <p class="muted">ここに登録した Google アカウントだけがログインできます。現在 ${cache.students.length} 名。</p>
+    <div class="hint">CSV を貼り付けて一括登録（1行目はヘッダ）：<br><code>email,name,class,number</code><br>
+      例：<code>taro@example.ed.jp,山田太郎,A,1</code></div>
+    <textarea id="csv" placeholder="email,name,class,number&#10;taro@example.ed.jp,山田太郎,A,1"></textarea>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn btn-primary" id="imp">CSVを登録</button>
+      <button class="btn btn-ghost" id="addone">1名追加</button>
+      <span class="ok" id="impmsg"></span></div></div>
+  <div class="card">
+    <div class="toolbar"><input id="filter" placeholder="検索（氏名・組・メール）" style="max-width:300px"></div>
+    <table><thead><tr><th>組</th><th>番</th><th>氏名</th><th>メール</th><th></th></tr></thead><tbody id="stbody"></tbody></table></div>`;
+  const sorted=[...cache.students].sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
+  const paint=(f='')=>{
+    document.getElementById('stbody').innerHTML=sorted
+      .filter(s=>!f||`${s.class}${s.number}${s.name}${s.id}`.toLowerCase().includes(f.toLowerCase()))
+      .map(s=>`<tr><td>${esc(s.class)}</td><td>${esc(s.number)}</td><td>${esc(s.name)}</td><td>${esc(s.id)}</td>
+        <td><button class="btn btn-bad" data-del="${esc(s.id)}">削除</button></td></tr>`).join('')
+      ||`<tr><td colspan="5" class="muted">該当なし</td></tr>`;
+    document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      if(!confirm('削除しますか？'))return; await deleteDoc(doc(db,'students',b.dataset.del)); await loadAdmin(); renderAdmin();});
+  };
+  paint();
+  document.getElementById('filter').oninput=e=>paint(e.target.value);
+  document.getElementById('imp').onclick=importCSV;
+  document.getElementById('addone').onclick=studentDialog;
+}
+async function importCSV(){
+  const raw=val('csv').trim(); if(!raw)return;
+  const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+  const header=lines.shift().split(',').map(s=>s.trim().toLowerCase());
+  const idx={email:header.indexOf('email'),name:header.indexOf('name'),class:header.indexOf('class'),number:header.indexOf('number')};
+  if(idx.email<0||idx.name<0){document.getElementById('impmsg').textContent='ヘッダに email,name が必要です';return;}
+  let batch=writeBatch(db),n=0,total=0;
+  for(const line of lines){
+    const c=line.split(',').map(s=>s.trim()); const email=(c[idx.email]||'').toLowerCase(); if(!email)continue;
+    batch.set(doc(db,'students',email),{email,name:c[idx.name]||'',
+      class:idx.class>=0?c[idx.class]||'':'',number:idx.number>=0?(+c[idx.number]||c[idx.number]||''):''});
+    n++;total++; if(n>=400){await batch.commit();batch=writeBatch(db);n=0;}
+  }
+  if(n>0)await batch.commit();
+  document.getElementById('impmsg').textContent=`${total} 名を登録しました`; await loadAdmin(); renderAdmin();
+}
+function studentDialog(){
+  dlgbody.innerHTML=`<h2>生徒を1名追加</h2>
+    <label>メール（Googleアカウント）</label><input id="s-email">
+    <label>氏名</label><input id="s-name">
+    <div class="row2"><div><label>組</label><input id="s-class"></div><div><label>番</label><input id="s-num" type="number"></div></div>
+    <p class="err" id="s-err"></p>
+    <div class="toolbar" style="justify-content:flex-end"><button class="btn btn-ghost" id="s-cancel">キャンセル</button>
+    <button class="btn btn-primary" id="s-save">保存</button></div>`;
+  dlg.showModal();
+  document.getElementById('s-cancel').onclick=()=>dlg.close();
+  document.getElementById('s-save').onclick=async()=>{
+    const email=val('s-email').trim().toLowerCase();
+    if(!email||!val('s-name').trim()){document.getElementById('s-err').textContent='メールと氏名は必須';return;}
+    await setDoc(doc(db,'students',email),{email,name:val('s-name').trim(),class:val('s-class').trim(),number:+val('s-num')||''});
+    dlg.close(); await loadAdmin(); renderAdmin();
+  };
+}
+
+function viewLottery(){
+  const v=document.getElementById('view'); const c=cache.config||{};
+  const tsVal=ts=>ts&&ts.toDate?toLocalInput(ts.toDate()):'';
+  const stepRow=(round,label)=>{const done=c[round+'Done'],cur=c.currentRound===round;
+    return `<div class="card" style="background:#fbfcff;margin-bottom:10px">
+      <b>${label}</b> ${done?'<span class="pill pill-ok">実行済み</span>':cur?'<span class="pill pill-info">受付中</span>':'<span class="pill pill-warn">未開始</span>'}
+      <div class="toolbar" style="margin-top:8px">${!done?`<button class="btn btn-ok" id="run-${round}">この回の抽選を実行</button>`:'<span class="muted">完了</span>'}</div></div>`;};
+  v.innerHTML=`<div class="card">
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">抽選日程</h2>
+    <div class="row3">
+      <div><label>第一次抽選 締切</label><input type="datetime-local" id="d1" value="${tsVal(c.round1At)}"></div>
+      <div><label>第二次抽選 締切</label><input type="datetime-local" id="d2" value="${tsVal(c.round2At)}"></div>
+      <div><label>最終抽選 締切</label><input type="datetime-local" id="df" value="${tsVal(c.finalAt)}"></div></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="r2en" style="width:auto" ${c.round2Enabled!==false?'checked':''}> 第二次抽選を実施する</label>
+    <div class="toolbar" style="margin-top:10px"><button class="btn btn-primary" id="savecfg">日程を保存</button><span class="ok" id="cfgmsg"></span></div></div>
+  <div class="card">
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">抽選の実行</h2>
+    <p class="muted">現在の受付: <b>${esc(ROUND_LABEL[c.currentRound]||'未開始')}</b></p>
+    ${stepRow('round1','第一次抽選')}
+    ${c.round2Enabled!==false?stepRow('round2','第二次抽選'):'<p class="muted">第二次抽選は「実施しない」設定です。</p>'}
+    ${stepRow('final','最終抽選')}
+    <div class="hint">「抽選を実行」を押すと結果を確定します（取り消し不可）。事前にテスト用プロジェクトでの通し試験を推奨します。</div>
+    <h3 style="font-family:var(--font-display);font-size:14px;margin:14px 0 6px">申込・確定状況</h3>
+    <table><thead><tr><th>プログラム</th><th>定員</th><th>今回申込</th><th>確定</th><th>空き</th></tr></thead><tbody>
+    ${cache.programs.map(p=>{const apps=cache.applications.filter(a=>a.programId===p.id&&a.round===(c.currentRound||'round1')).length;
+      const cf=cache.results.filter(r=>r.status==='confirmed'&&r.programId===p.id).length;
+      return `<tr><td>${esc(p.name)}</td><td>${esc(p.capacity)}</td><td>${apps}</td><td>${cf}</td><td>${(+p.capacity||0)-cf}</td></tr>`;}).join('')}
+    </tbody></table>
+    <p class="muted" style="margin-top:8px">未確定: ${cache.students.length-cache.results.filter(r=>r.status==='confirmed').length} 名</p></div>`;
+  document.getElementById('savecfg').onclick=saveConfig;
+  ['round1','round2','final'].forEach(r=>{const b=document.getElementById('run-'+r);if(b)b.onclick=()=>runLottery(r);});
+}
+async function saveConfig(){
+  const d1=val('d1'),d2=val('d2'),df=val('df'),r2=document.getElementById('r2en').checked;
+  await setDoc(doc(db,'config','lottery'),{
+    round1At:d1?Timestamp.fromDate(new Date(d1)):null, round2At:d2?Timestamp.fromDate(new Date(d2)):null,
+    finalAt:df?Timestamp.fromDate(new Date(df)):null, round2Enabled:r2,
+    currentRound:cache.config?.currentRound||'round1',
+    round1Done:cache.config?.round1Done||false, round2Done:cache.config?.round2Done||false, finalDone:cache.config?.finalDone||false,
+  },{merge:true});
+  document.getElementById('cfgmsg').textContent='保存しました'; await loadAdmin(); renderAdmin();
+}
+
+// ---- 抽選エンジン ----
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+async function runLottery(round){
+  if(!confirm(`${ROUND_LABEL[round]}を実行します。よろしいですか？（取り消せません）`))return;
+  await loadAdmin();
+  const progs=cache.programs, confByProg={}, confEmails=new Set();
+  progs.forEach(p=>confByProg[p.id]=0);
+  cache.results.forEach(r=>{if(r.status==='confirmed'){confByProg[r.programId]=(confByProg[r.programId]||0)+1;confEmails.add(r.id);}});
+  const remaining={}; progs.forEach(p=>remaining[p.id]=(+p.capacity||0)-(confByProg[p.id]||0));
+  const byProg={}; progs.forEach(p=>byProg[p.id]=[]);
+  cache.applications.filter(a=>a.round===round&&!confEmails.has(a.studentEmail))
+    .forEach(a=>{if(byProg[a.programId])byProg[a.programId].push(a.studentEmail);});
+  const batch=[];
+  for(const p of progs){
+    const applicants=shuffle([...byProg[p.id]]), avail=remaining[p.id];
+    if(applicants.length<=avail){ applicants.forEach(e=>batch.push({email:e,status:'confirmed',programId:p.id})); remaining[p.id]-=applicants.length; }
+    else{ applicants.slice(0,avail).forEach(e=>batch.push({email:e,status:'confirmed',programId:p.id}));
+          applicants.slice(avail).forEach(e=>batch.push({email:e,status:'lost',programId:p.id})); remaining[p.id]=0; }
+  }
+  if(round==='final'){
+    const placed=new Set(batch.filter(b=>b.status==='confirmed').map(b=>b.email));
+    const pend=cache.students.map(s=>s.id).filter(e=>!confEmails.has(e)&&!placed.has(e));
+    let slots=[]; progs.forEach(p=>{for(let i=0;i<remaining[p.id];i++)slots.push(p.id);});
+    shuffle(slots); shuffle(pend); const overflow=[];
+    pend.forEach(e=>{const pid=slots.pop(); pid?batch.push({email:e,status:'confirmed',programId:pid}):overflow.push(e);});
+    if(overflow.length) alert(`定員不足のため ${overflow.length} 名を配置できませんでした。定員を見直してください。`);
+  }
+  let wb=writeBatch(db),n=0;
+  for(const r of batch){ wb.set(doc(db,'results',r.email),{status:r.status,programId:r.programId,round,updatedAt:serverTimestamp()});
+    if(++n>=400){await wb.commit();wb=writeBatch(db);n=0;} }
+  const next=round==='round1'?(cache.config?.round2Enabled!==false?'round2':'final'):'final';
+  wb.set(doc(db,'config','lottery'),{[round+'Done']:true,currentRound:round==='final'?'final':next},{merge:true});
+  await wb.commit();
+  alert(`${ROUND_LABEL[round]}を実行しました。確定 ${batch.filter(b=>b.status==='confirmed').length} 名 / 落選 ${batch.filter(b=>b.status==='lost').length} 名`);
+  await loadAdmin(); renderAdmin();
+}
+
+// ---- Excel 出力 ----
+function viewExport(){
+  const v=document.getElementById('view'); const cn=cache.results.filter(r=>r.status==='confirmed').length;
+  v.innerHTML=`<div class="card">
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">名簿の Excel 出力</h2>
+    <p class="muted">確定済み ${cn} 名 ／ 生徒 ${cache.students.length} 名。</p>
+    <div class="hint">「暫定版」は現在の申込（受付中の回）から、「確定版」は抽選結果から出力します。</div>
+    <h3 style="font-family:var(--font-display);font-size:14px">クラス毎（A4 1枚/クラス想定）</h3>
+    <div class="toolbar"><button class="btn btn-ghost" data-x="class-temp">暫定版（クラス毎）</button>
+      <button class="btn btn-primary" data-x="class-fix">確定版（クラス毎）</button></div>
+    <h3 style="font-family:var(--font-display);font-size:14px">プログラム毎（A4 1枚/プログラム想定）</h3>
+    <div class="toolbar"><button class="btn btn-ghost" data-x="prog-temp">暫定版（プログラム毎）</button>
+      <button class="btn btn-primary" data-x="prog-fix">確定版（プログラム毎）</button></div>
+    <span class="ok" id="xmsg"></span></div>`;
+  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>exportExcel(b.dataset.x));
+}
+const pName=pid=>{const p=cache.programs.find(x=>x.id===pid);return p?p.name:'(未確定)';};
+function choiceOf(email,fixed){
+  if(fixed){const r=cache.results.find(r=>r.id===email&&r.status==='confirmed');return r?pName(r.programId):'(未確定)';}
+  const cur=cache.config?.currentRound||'round1';const a=cache.applications.find(a=>a.studentEmail===email&&a.round===cur);
+  return a?pName(a.programId):'(未申込)';
+}
+async function exportExcel(kind){
+  document.getElementById('xmsg').textContent='生成中…';
+  const XLSX=await loadXLSX(); const fixed=kind.endsWith('fix'); const wb=XLSX.utils.book_new();
+  const students=[...cache.students].sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
+  if(kind.startsWith('class')){
+    [...new Set(students.map(s=>s.class||'(組なし)'))].forEach(cls=>{
+      const rows=[['組','番','氏名','メール',fixed?'確定プログラム':'申込プログラム']];
+      students.filter(s=>(s.class||'(組なし)')===cls).forEach(s=>rows.push([s.class||'',s.number||'',s.name||'',s.id,choiceOf(s.id,fixed)]));
+      const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:6},{wch:6},{wch:18},{wch:28},{wch:46}];
+      XLSX.utils.book_append_sheet(wb,ws,sheetName(`${cls}組`));
+    });
+  }else{
+    cache.programs.forEach(p=>{
+      const rows=[[p.name],['定員: '+p.capacity],[],['組','番','氏名','メール']];
+      const cur=cache.config?.currentRound||'round1';
+      const members=fixed
+        ? students.filter(s=>cache.results.find(r=>r.id===s.id&&r.status==='confirmed'&&r.programId===p.id))
+        : students.filter(s=>cache.applications.find(a=>a.studentEmail===s.id&&a.round===cur&&a.programId===p.id));
+      members.forEach(s=>rows.push([s.class||'',s.number||'',s.name||'',s.id]));
+      rows.push([],[`人数: ${members.length} 名`]);
+      const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:6},{wch:6},{wch:18},{wch:28}];
+      XLSX.utils.book_append_sheet(wb,ws,sheetName(p.name));
+    });
+  }
+  XLSX.writeFile(wb,`修学旅行名簿_${kind.startsWith('class')?'クラス毎':'プログラム毎'}_${fixed?'確定版':'暫定版'}.xlsx`);
+  document.getElementById('xmsg').textContent='ダウンロードしました';
+}
+const sheetName=s=>String(s).replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,28)||'sheet';
+
+// ---- utils ----
+function val(id){return document.getElementById(id).value;}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function fmt(ts){ try{const d=ts.toDate?ts.toDate():new Date(ts);
-  return d.toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return '';} }
+function toLocalInput(d){const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;}
 </script>
 </body>
 </html>
