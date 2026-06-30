@@ -238,7 +238,7 @@ const TICKET_COLORS=[
  ['#ff5e8a','#ff9bb3'],['#2bb673','#84e6ad'],['#3a9bff','#7bd0ff'],['#9b5de5','#c89bf5']];
 const tcolor=i=>TICKET_COLORS[(i-1+TICKET_COLORS.length)%TICKET_COLORS.length]||TICKET_COLORS[0];
 
-let user=null, wantAdmin=false, role={admin:false,student:false}, tickInt=null;
+let user=null, viewMode=null, role={admin:false,student:false}, tickInt=null; // viewMode: null(自動) | 'admin' | 'student'
 let me={}, cache={programs:[],students:[],applications:[],results:[],config:null}, counts={};
 
 // PDF由来の初期8プログラム
@@ -273,16 +273,18 @@ function renderHeader(){
     return;
   }
   const inAdmin = currentScreen==='admin';
+  const showStudentLink = inAdmin && role.student; // 管理画面にいて、かつ生徒登録もある場合だけ「生徒画面」リンクを出す
   $hdr.innerHTML=`
-    ${inAdmin?`<button class="linkbtn" id="hb-stu">生徒画面</button>`:`<button class="adminbtn" id="hb-admin">🔑 管理者</button>`}
+    ${showStudentLink?`<button class="linkbtn" id="hb-stu">生徒画面</button>`:''}
+    ${!inAdmin&&role.admin?`<button class="adminbtn" id="hb-admin">🔑 管理者</button>`:''}
     <span class="userchip"><b>${esc(me.name||user.email)}</b><button class="linkbtn" id="hb-out">ログアウト</button></span>`;
   const ad=document.getElementById('hb-admin'); if(ad) ad.onclick=goAdmin;
-  const st=document.getElementById('hb-stu'); if(st) st.onclick=()=>{wantAdmin=false;route();};
+  const st=document.getElementById('hb-stu'); if(st) st.onclick=()=>{viewMode='student';route();};
   document.getElementById('hb-out').onclick=()=>signOut(auth);
 }
 
 async function goAdmin(){
-  wantAdmin=true;
+  viewMode='admin';
   if(!user){ try{ await signInWithPopup(auth,new GoogleAuthProvider()); }catch(e){} return; }
   route();
 }
@@ -291,10 +293,15 @@ let currentScreen=null;
 async function route(){
   stopTick();
   if(!user){ currentScreen='login'; renderHeader(); return renderLogin(); }
-  if(wantAdmin){
+  if(viewMode==='admin'){
     if(role.admin){ currentScreen='admin'; renderHeader(); await loadAdmin(); return renderAdmin(); }
     currentScreen='adminDenied'; renderHeader(); return renderAdminDenied();
   }
+  if(viewMode==='student'){
+    if(role.student){ currentScreen='student'; renderHeader(); return renderStudent(); }
+    currentScreen='studentNotRegistered'; renderHeader(); return renderStudentNotRegistered();
+  }
+  // 自動判定（初回ログイン時など viewMode 未指定）
   if(role.student){ currentScreen='student'; renderHeader(); return renderStudent(); }
   if(role.admin){ currentScreen='admin'; renderHeader(); await loadAdmin(); return renderAdmin(); }
   currentScreen='notRegistered'; renderHeader(); return renderNotRegistered();
@@ -328,6 +335,15 @@ function renderNotRegistered(){
     <button class="btn btn-ghost" id="sw">別のアカウントでログイン</button>
   </div>`;
   document.getElementById('sw').onclick=()=>signOut(auth);
+}
+function renderStudentNotRegistered(){
+  $app.innerHTML=`<div class="card resultbox">
+    <div class="icon">🎫</div>
+    <h2 style="font-family:var(--font-display)">生徒として登録されていません</h2>
+    <p class="muted">このアカウント（<b>${esc(user.email)}</b>）は「生徒名簿」に登録がないため、生徒画面を確認できません。<br>生徒画面で確認したい場合は、管理画面の「生徒名簿」タブで先にこのアカウントを登録してください。</p>
+    <button class="btn btn-ghost" id="back">管理画面に戻る</button>
+  </div>`;
+  document.getElementById('back').onclick=()=>{ viewMode='admin'; route(); };
 }
 function renderAdminDenied(){
   // 権限がない正確な理由を表示（自己診断用）
@@ -527,6 +543,14 @@ function renderAdmin(){
   ({programs:viewPrograms,students:viewStudents,lottery:viewLottery,export:viewExport}[activeTab])();
 }
 
+function syncMyStudentRole(){
+  // 管理者が自分自身を生徒名簿に登録した場合、リロードなしで「生徒画面」リンクを出せるようにする
+  if(!user) return;
+  const mine = cache.students.find(s=>s.id===user.email);
+  role.student = !!mine;
+  if(mine) me = {id:user.email, ...mine};
+}
+
 function viewPrograms(){
   const v=document.getElementById('view');
   const conf=pid=>cache.results.filter(r=>r.status==='confirmed'&&r.programId===pid).length;
@@ -603,7 +627,7 @@ function viewStudents(){
         <td><button class="btn btn-bad" data-del="${esc(s.id)}">削除</button></td></tr>`).join('')
       ||`<tr><td colspan="5" class="muted">該当なし</td></tr>`;
     document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
-      if(!confirm('削除しますか？'))return; await deleteDoc(doc(db,'students',b.dataset.del)); await loadAdmin(); renderAdmin();});
+      if(!confirm('削除しますか？'))return; await deleteDoc(doc(db,'students',b.dataset.del)); await loadAdmin(); syncMyStudentRole(); renderHeader(); renderAdmin();});
   };
   paint();
   document.getElementById('filter').oninput=e=>paint(e.target.value);
@@ -624,7 +648,7 @@ async function importCSV(){
     n++;total++; if(n>=400){await batch.commit();batch=writeBatch(db);n=0;}
   }
   if(n>0)await batch.commit();
-  document.getElementById('impmsg').textContent=`${total} 名を登録しました`; await loadAdmin(); renderAdmin();
+  document.getElementById('impmsg').textContent=`${total} 名を登録しました`; await loadAdmin(); syncMyStudentRole(); renderHeader(); renderAdmin();
 }
 function studentDialog(){
   dlgbody.innerHTML=`<h2>生徒を1名追加</h2>
@@ -640,7 +664,7 @@ function studentDialog(){
     const email=val('s-email').trim().toLowerCase();
     if(!email||!val('s-name').trim()){document.getElementById('s-err').textContent='メールと氏名は必須';return;}
     await setDoc(doc(db,'students',email),{email,name:val('s-name').trim(),class:val('s-class').trim(),number:+val('s-num')||''});
-    dlg.close(); await loadAdmin(); renderAdmin();
+    dlg.close(); await loadAdmin(); syncMyStudentRole(); renderHeader(); renderAdmin();
   };
 }
 
