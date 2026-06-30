@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>修学旅行 プログラム選択（管理）</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--ink:#1c2330;--sub:#5b6472;--line:#e3e7ee;
+    --brand:#2f80ed;--brand-d:#1f63c4;--ok:#2b9d6e;--warn:#e07a3c;--bad:#d2453f;--radius:12px}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  header{background:#1c2330;color:#fff}
+  .bar{max-width:1040px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .bar h1{font-size:15px;margin:0}
+  .who{margin-left:auto;font-size:13px;opacity:.85}
+  .who a{color:#9fc1f5}
+  main{max-width:1040px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tab{padding:8px 14px;border-radius:999px;background:#e7ebf2;cursor:pointer;font-size:14px;font-weight:600;color:var(--sub)}
+  .tab.active{background:var(--brand);color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+  h2{font-size:16px;margin:0 0 10px}
+  h3{font-size:14px;margin:14px 0 6px}
+  .btn{appearance:none;border:0;border-radius:9px;padding:9px 15px;font-size:14px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-d)}
+  .btn-ghost{background:#eef1f6;color:var(--ink)}
+  .btn-bad{background:#fbe9e8;color:var(--bad)}
+  .btn-ok{background:#e6f6ee;color:var(--ok)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  label{display:block;font-size:13px;color:var(--sub);margin:8px 0 3px;font-weight:600}
+  input,textarea,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+  textarea{min-height:70px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+  th{color:var(--sub);font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill-ok{background:#e6f6ee;color:var(--ok)}.pill-warn{background:#fdf0e6;color:var(--warn)}
+  .pill-bad{background:#fbe9e8;color:var(--bad)}.pill-info{background:#e9f1fd;color:var(--brand-d)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .center{text-align:center;padding:40px}
+  .err{color:var(--bad);font-size:13px}
+  .ok{color:var(--ok);font-size:13px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  dialog{border:0;border-radius:14px;padding:0;max-width:560px;width:92%}
+  dialog .dc{padding:18px}
+  .grid-prog{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .pcard{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .pcard img{width:100%;height:110px;object-fit:cover;background:#eef1f6}
+  .pcard .pc{padding:10px}
+  .pcard .pt{font-weight:700;font-size:14px}
+  .hint{background:#f4f8ff;border:1px solid #d7e6ff;border-radius:8px;padding:10px;font-size:13px;color:#2c4a78;margin:8px 0}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <h1>修学旅行 プログラム選択 ― 管理画面</h1>
+  <div class="who" id="who"></div>
+</div></header>
+<main id="app"><div class="center muted">読み込み中…</div></main>
+
+<dialog id="dlg"><div class="dc" id="dlgbody"></div></dialog>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+  getDocs, collection, query, orderBy, writeBatch, serverTimestamp, Timestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+const $app=document.getElementById('app'), $who=document.getElementById('who');
+const dlg=document.getElementById('dlg'), dlgbody=document.getElementById('dlgbody');
+
+// SheetJS（Excel出力）を遅延ロード
+let XLSXp=null;
+function loadXLSX(){ if(!XLSXp){ XLSXp=import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm"); } return XLSXp; }
+
+let me={isAdmin:false};
+let cache={programs:[],students:[],applications:[],results:[],config:null};
+let activeTab='programs';
+
+// PDF 由来の初期8プログラム
+const SEED=[
+ {name:"① 耕作放棄地を解消。新しい農業の形を考えるツアー",description:"全国40万haの耕作放棄地のうち8万haは都市近郊。レンタル農園を提供する京都の農業ベンチャーに話を聞き、農作業体験も行う。",tags:"耕作放棄地/第一次産業/農ある暮らし"},
+ {name:"② SNSを活用したごみ問題の課題解決を考えるツアー",description:"自然界へ流出するごみ問題を、テクノロジーの関わり方と自分にできることから考える。SNS活用とごみ拾いを体験。",tags:"ごみ問題/プラスチックごみ/SNS"},
+ {name:"③ 空き家のリノベーションから「住む京都」を考えるツアー",description:"町家の空き家問題。職住一体の拠点を見学し、移住支援団体と「住みやすい地域」を考える。",tags:"空き家/地域コミュニティ/暮らし"},
+ {name:"④ 多様な太陽光発電の形から自然エネルギーの可能性を考えるツアー",description:"日本の自然エネルギー利用率の低さを背景に、ソーラーシェアリングを見学し再エネ拡大を考える。",tags:"再生可能エネルギー/脱炭素社会/気候変動"},
+ {name:"⑤ 伝統産業とその技術・継承について考えるツアー",description:"学生起業家のベンチャーで、伝統工芸品の造り方や化学的知見も含め、継承の意味と価値を考える。",tags:"伝統産業/後継者不足/職人"},
+ {name:"⑥ 作業療法士＆お笑い芸人と新たな介護の選択肢を考えるツアー",description:"『人生のラストに笑いと生きがいを』をモットーにレクリエーションで健康を届ける現場から介護を考える。",tags:"高齢化社会/作業療法士/介護"},
+ {name:"⑦ コミュニティナースの価値と地域医療を考えるツアー",description:"暮らしの身近な存在として健康活動を行うコミュニティナースに話を聞き、地域医療のあり方を考える。",tags:"地域医療/高齢化/コミュニティナース"},
+ {name:"⑧ アスリートが引退後も人生を豊かに歩む世界を考えるツアー",description:"アスリートのキャリア支援企業に話を聞き、引退後も豊かに歩むために必要なことを疑似ワークで考える。",tags:"アスリート/デュアルキャリア/多様性"},
+];
+
+// ---------- 認証 ----------
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){ renderLogin(); return; }
+  const aSnap=await getDoc(doc(db,'admins',user.email));
+  if(!aSnap.exists() || aSnap.data().active!==true){
+    $app.innerHTML=`<div class="card center"><p style="font-weight:700">管理者権限がありません</p>
+      <p class="muted">このアカウントは admins に登録されていません。</p>
+      <button class="btn btn-ghost" id="so">別アカウントでログイン</button></div>`;
+    $who.innerHTML=`<a href="#" id="lo">ログアウト</a>`; bindLogout();
+    document.getElementById('so').onclick=()=>signOut(auth);
+    return;
+  }
+  me.isAdmin=true;
+  $who.innerHTML=`${esc(user.email)} ｜ <a href="#" id="lo">ログアウト</a>`; bindLogout();
+  await loadAll(); render();
+});
+function bindLogout(){ const lo=document.getElementById('lo'); if(lo) lo.onclick=(e)=>{e.preventDefault();signOut(auth);}; }
+function renderLogin(){
+  $who.textContent="";
+  $app.innerHTML=`<div class="card center"><p style="font-weight:700">管理者ログイン</p>
+    <button class="btn btn-primary" id="gl">Google でログイン</button></div>`;
+  document.getElementById('gl').onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());
+}
+
+// ---------- データ ----------
+async function loadAll(){
+  const [pg,st,ap,rs,cf]=await Promise.all([
+    getDocs(query(collection(db,'programs'),orderBy('order'))).catch(()=>getDocs(collection(db,'programs'))),
+    getDocs(collection(db,'students')),
+    getDocs(collection(db,'applications')),
+    getDocs(collection(db,'results')),
+    getDoc(doc(db,'config','lottery')),
+  ]);
+  cache.programs=pg.docs.map(d=>({id:d.id,...d.data()}));
+  cache.students=st.docs.map(d=>({id:d.id,...d.data()}));
+  cache.applications=ap.docs.map(d=>({id:d.id,...d.data()}));
+  cache.results=rs.docs.map(d=>({id:d.id,...d.data()}));
+  cache.config=cf.exists()?cf.data():null;
+}
+
+// ---------- 画面 ----------
+function render(){
+  const tabs=[['programs','プログラム'],['students','生徒名簿'],['lottery','抽選設定・実行'],['export','名簿出力']];
+  $app.innerHTML=`<div class="tabs">${tabs.map(([k,l])=>`<div class="tab ${activeTab===k?'active':''}" data-t="${k}">${l}</div>`).join('')}</div><div id="view"></div>`;
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{activeTab=t.dataset.t;render();});
+  ({programs:viewPrograms,students:viewStudents,lottery:viewLottery,export:viewExport}[activeTab])();
+}
+
+// ===== プログラム =====
+function viewPrograms(){
+  const v=document.getElementById('view');
+  const confirmedCount=pid=>cache.results.filter(r=>r.status==='confirmed'&&r.programId===pid).length;
+  const totalCap=cache.programs.reduce((s,p)=>s+(+p.capacity||0),0);
+  v.innerHTML=`<div class="card">
+    <div class="toolbar">
+      <button class="btn btn-primary" id="add">＋ プログラム追加</button>
+      ${cache.programs.length===0?`<button class="btn btn-ghost" id="seed">添付PDFの8件を投入</button>`:''}
+    </div>
+    <p class="muted">登録 ${cache.programs.length} 件 ／ 定員合計 <b>${totalCap}</b> 名 ／ 生徒 ${cache.students.length} 名
+      ${totalCap<cache.students.length?`<span class="pill pill-bad">定員不足</span>`:`<span class="pill pill-ok">充足</span>`}</p>
+    <div class="grid-prog">${cache.programs.map(p=>`
+      <div class="pcard">
+        ${p.imageUrl?`<img src="${esc(p.imageUrl)}">`:`<div style="height:110px;background:#eef1f6"></div>`}
+        <div class="pc">
+          <div class="pt">${esc(p.name)}</div>
+          <div class="muted" style="margin:4px 0">定員 ${esc(p.capacity)}／確定 ${confirmedCount(p.id)}</div>
+          <div class="toolbar"><button class="btn btn-ghost" data-edit="${esc(p.id)}">編集</button>
+          <button class="btn btn-bad" data-del="${esc(p.id)}">削除</button></div>
+        </div>
+      </div>`).join('')}</div>
+  </div>`;
+  document.getElementById('add').onclick=()=>progDialog(null);
+  const sb=document.getElementById('seed'); if(sb) sb.onclick=seedPrograms;
+  v.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>progDialog(cache.programs.find(p=>p.id===b.dataset.edit)));
+  v.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delProgram(b.dataset.del));
+}
+async function seedPrograms(){
+  const batch=writeBatch(db);
+  SEED.forEach((p,i)=>{ const ref=doc(collection(db,'programs'));
+    batch.set(ref,{name:p.name,description:p.description,tags:p.tags,capacity:40,imageUrl:"",order:i+1}); });
+  await batch.commit(); await loadAll(); render();
+}
+function progDialog(p){
+  const isNew=!p;
+  dlgbody.innerHTML=`<h2>${isNew?'プログラム追加':'プログラム編集'}</h2>
+    <label>プログラム名</label><input id="f-name" value="${esc(p?.name||'')}">
+    <label>内容</label><textarea id="f-desc">${esc(p?.description||'')}</textarea>
+    <div class="row2">
+      <div><label>定員</label><input id="f-cap" type="number" min="0" value="${esc(p?.capacity??40)}"></div>
+      <div><label>表示順</label><input id="f-order" type="number" value="${esc(p?.order??(cache.programs.length+1))}"></div>
+    </div>
+    <label>画像URL（リポジトリ内 images/xxx.jpg でも外部URLでも可）</label><input id="f-img" value="${esc(p?.imageUrl||'')}">
+    <label>タグ（任意）</label><input id="f-tags" value="${esc(p?.tags||'')}">
+    <p class="err" id="f-err"></p>
+    <div class="toolbar" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn btn-ghost" id="f-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="f-save">保存</button>
+    </div>`;
+  dlg.showModal();
+  document.getElementById('f-cancel').onclick=()=>dlg.close();
+  document.getElementById('f-save').onclick=async()=>{
+    const data={ name:val('f-name').trim(), description:val('f-desc').trim(),
+      capacity:+val('f-cap')||0, order:+val('f-order')||0, imageUrl:val('f-img').trim(), tags:val('f-tags').trim() };
+    if(!data.name){ document.getElementById('f-err').textContent='プログラム名は必須です'; return; }
+    try{ if(isNew) await addDoc(collection(db,'programs'),data);
+         else await updateDoc(doc(db,'programs',p.id),data);
+      dlg.close(); await loadAll(); render();
+    }catch(e){ document.getElementById('f-err').textContent='保存失敗: '+e.message; }
+  };
+}
+async function delProgram(id){
+  if(!confirm('このプログラムを削除しますか？')) return;
+  await deleteDoc(doc(db,'programs',id)); await loadAll(); render();
+}
+
+// ===== 生徒名簿 =====
+function viewStudents(){
+  const v=document.getElementById('view');
+  v.innerHTML=`<div class="card">
+    <h2>生徒名簿（許可リスト）</h2>
+    <p class="muted">ここに登録された Google アカウントのみログインできます。現在 ${cache.students.length} 名。</p>
+    <div class="hint">CSV を貼り付けて一括登録（ヘッダ必須）：<br><code>email,name,class,number</code><br>
+      例: <code>taro@example.ed.jp,山田太郎,A,1</code>　※email はログインに使う Google アドレス（小文字）</div>
+    <textarea id="csv" placeholder="email,name,class,number&#10;taro@example.ed.jp,山田太郎,A,1"></textarea>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn btn-primary" id="imp">CSVを登録</button>
+      <button class="btn btn-ghost" id="addone">1名追加</button>
+      <span id="impmsg" class="ok"></span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar"><input id="filter" placeholder="検索（氏名・組・メール）" style="max-width:280px"></div>
+    <table><thead><tr><th>組</th><th>番</th><th>氏名</th><th>メール</th><th></th></tr></thead>
+    <tbody id="stbody"></tbody></table>
+  </div>`;
+  const sorted=[...cache.students].sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
+  function paint(f=''){
+    document.getElementById('stbody').innerHTML=sorted.filter(s=>!f||
+      (`${s.class}${s.number}${s.name}${s.id}`).toLowerCase().includes(f.toLowerCase()))
+      .map(s=>`<tr><td>${esc(s.class)}</td><td>${esc(s.number)}</td><td>${esc(s.name)}</td><td>${esc(s.id)}</td>
+        <td><button class="btn btn-bad" data-del="${esc(s.id)}">削除</button></td></tr>`).join('')
+      ||`<tr><td colspan="5" class="muted">該当なし</td></tr>`;
+    document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+      if(!confirm('削除しますか？')) return;
+      await deleteDoc(doc(db,'students',b.dataset.del)); await loadAll(); render();
+    });
+  }
+  paint();
+  document.getElementById('filter').oninput=e=>paint(e.target.value);
+  document.getElementById('imp').onclick=importCSV;
+  document.getElementById('addone').onclick=studentDialog;
+}
+async function importCSV(){
+  const raw=val('csv').trim(); if(!raw){return;}
+  const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+  const header=lines.shift().split(',').map(s=>s.trim().toLowerCase());
+  const idx={email:header.indexOf('email'),name:header.indexOf('name'),class:header.indexOf('class'),number:header.indexOf('number')};
+  if(idx.email<0||idx.name<0){ document.getElementById('impmsg').textContent='ヘッダに email,name が必要です'; return; }
+  let batch=writeBatch(db),n=0,total=0;
+  for(const line of lines){
+    const c=line.split(',').map(s=>s.trim());
+    const email=(c[idx.email]||'').toLowerCase(); if(!email) continue;
+    batch.set(doc(db,'students',email),{ email, name:c[idx.name]||'',
+      class:idx.class>=0?c[idx.class]||'':'', number:idx.number>=0?(+c[idx.number]||c[idx.number]||''):'' });
+    n++; total++;
+    if(n>=400){ await batch.commit(); batch=writeBatch(db); n=0; }
+  }
+  if(n>0) await batch.commit();
+  document.getElementById('impmsg').textContent=`${total} 名を登録しました`;
+  await loadAll(); render();
+}
+function studentDialog(){
+  dlgbody.innerHTML=`<h2>生徒を1名追加</h2>
+    <label>メール（Googleアカウント）</label><input id="s-email">
+    <label>氏名</label><input id="s-name">
+    <div class="row2"><div><label>組</label><input id="s-class"></div><div><label>番</label><input id="s-num" type="number"></div></div>
+    <p class="err" id="s-err"></p>
+    <div class="toolbar" style="justify-content:flex-end"><button class="btn btn-ghost" id="s-cancel">キャンセル</button>
+    <button class="btn btn-primary" id="s-save">保存</button></div>`;
+  dlg.showModal();
+  document.getElementById('s-cancel').onclick=()=>dlg.close();
+  document.getElementById('s-save').onclick=async()=>{
+    const email=val('s-email').trim().toLowerCase();
+    if(!email||!val('s-name').trim()){ document.getElementById('s-err').textContent='メールと氏名は必須'; return; }
+    await setDoc(doc(db,'students',email),{email,name:val('s-name').trim(),class:val('s-class').trim(),number:+val('s-num')||''});
+    dlg.close(); await loadAll(); render();
+  };
+}
+
+// ===== 抽選設定・実行 =====
+function viewLottery(){
+  const v=document.getElementById('view');
+  const c=cache.config||{};
+  const tsVal=ts=>ts&&ts.toDate?toLocalInput(ts.toDate()):'';
+  v.innerHTML=`<div class="card">
+    <h2>抽選日程の設定</h2>
+    <div class="row3">
+      <div><label>第一次抽選 締切</label><input type="datetime-local" id="d1" value="${tsVal(c.round1At)}"></div>
+      <div><label>第二次抽選 締切</label><input type="datetime-local" id="d2" value="${tsVal(c.round2At)}"></div>
+      <div><label>最終抽選 締切</label><input type="datetime-local" id="df" value="${tsVal(c.finalAt)}"></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px">
+      <input type="checkbox" id="r2en" style="width:auto" ${c.round2Enabled!==false?'checked':''}> 第二次抽選を実施する</label>
+    <div class="toolbar" style="margin-top:10px"><button class="btn btn-primary" id="savecfg">日程を保存</button>
+      <span id="cfgmsg" class="ok"></span></div>
+  </div>
+  <div class="card">
+    <h2>抽選の進行</h2>
+    <p class="muted">現在の受付中の回: <b>${esc(label(c.currentRound)||'未開始')}</b></p>
+    ${stepRow('round1','第一次抽選',c)}
+    ${c.round2Enabled!==false?stepRow('round2','第二次抽選',c):'<p class="muted">第二次抽選は「実施しない」設定です。</p>'}
+    ${stepRow('final','最終抽選',c)}
+    <div class="hint">「抽選を実行」を押すと、その回の抽選を計算して結果を確定します（取り消し不可）。実行前に申込状況を確認してください。</div>
+    <h3>現在の申込・確定状況</h3>
+    <table><thead><tr><th>プログラム</th><th>定員</th><th>今回申込</th><th>確定</th><th>空き</th></tr></thead><tbody>
+    ${cache.programs.map(p=>{
+      const apps=cache.applications.filter(a=>a.programId===p.id&&a.round===(c.currentRound||'round1')).length;
+      const conf=cache.results.filter(r=>r.status==='confirmed'&&r.programId===p.id).length;
+      return `<tr><td>${esc(p.name)}</td><td>${esc(p.capacity)}</td><td>${apps}</td><td>${conf}</td><td>${(+p.capacity||0)-conf}</td></tr>`;
+    }).join('')}
+    </tbody></table>
+    <p class="muted" style="margin-top:8px">未確定の生徒: ${cache.students.length - cache.results.filter(r=>r.status==='confirmed').length} 名</p>
+  </div>`;
+  document.getElementById('savecfg').onclick=saveConfig;
+  ['round1','round2','final'].forEach(r=>{ const b=document.getElementById('run-'+r); if(b) b.onclick=()=>runLottery(r); });
+}
+function stepRow(round,labelTxt,c){
+  const done=c[round+'Done'];
+  const isCurrent=c.currentRound===round;
+  return `<div class="card" style="background:#fbfcfe">
+    <b>${labelTxt}</b>
+    ${done?'<span class="pill pill-ok">実行済み</span>':isCurrent?'<span class="pill pill-info">受付中</span>':'<span class="pill pill-warn">未開始</span>'}
+    <div class="toolbar" style="margin-top:8px">
+      ${!done?`<button class="btn btn-ok" id="run-${round}">この回の抽選を実行</button>`:'<span class="muted">完了</span>'}
+    </div></div>`;
+}
+async function saveConfig(){
+  const d1=val('d1'),d2=val('d2'),df=val('df'),r2=document.getElementById('r2en').checked;
+  const cur=cache.config?.currentRound||'round1';
+  const data={
+    round1At:d1?Timestamp.fromDate(new Date(d1)):null,
+    round2At:d2?Timestamp.fromDate(new Date(d2)):null,
+    finalAt:df?Timestamp.fromDate(new Date(df)):null,
+    round2Enabled:r2,
+    currentRound:cur,
+    round1Done:cache.config?.round1Done||false,
+    round2Done:cache.config?.round2Done||false,
+    finalDone:cache.config?.finalDone||false,
+  };
+  await setDoc(doc(db,'config','lottery'),data,{merge:true});
+  document.getElementById('cfgmsg').textContent='保存しました'; await loadAll(); render();
+}
+
+// ---------- 抽選エンジン ----------
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+async function runLottery(round){
+  if(!confirm(`${label(round)}を実行します。よろしいですか？（取り消せません）`)) return;
+  await loadAll(); // 最新化
+  const progs=cache.programs;
+  const confirmedByProg={}; progs.forEach(p=>confirmedByProg[p.id]=0);
+  const confirmedEmails=new Set();
+  cache.results.forEach(r=>{ if(r.status==='confirmed'){ confirmedByProg[r.programId]=(confirmedByProg[r.programId]||0)+1; confirmedEmails.add(r.id); } });
+
+  const remaining={}; progs.forEach(p=>remaining[p.id]=(+p.capacity||0)-(confirmedByProg[p.id]||0));
+
+  // 未確定の生徒のうち、この回に申込している人を集める
+  const appsThisRound=cache.applications.filter(a=>a.round===round && !confirmedEmails.has(a.studentEmail));
+  const byProg={}; progs.forEach(p=>byProg[p.id]=[]);
+  appsThisRound.forEach(a=>{ if(byProg[a.programId]) byProg[a.programId].push(a.studentEmail); });
+
+  const batch=[]; // {email, status, programId}
+  // --- 各プログラムごとに抽選 ---
+  for(const p of progs){
+    const applicants=shuffle([...byProg[p.id]]);
+    const avail=remaining[p.id];
+    if(applicants.length<=avail){
+      applicants.forEach(e=>{ batch.push({email:e,status:'confirmed',programId:p.id}); });
+      remaining[p.id]-=applicants.length;
+    }else{
+      const winners=applicants.slice(0,avail), losers=applicants.slice(avail);
+      winners.forEach(e=>batch.push({email:e,status:'confirmed',programId:p.id}));
+      losers.forEach(e=>batch.push({email:e,status:'lost',programId:p.id}));
+      remaining[p.id]=0;
+    }
+  }
+
+  // --- 最終抽選：未確定の全員（落選＋未申込）を空き枠へランダム配置 ---
+  if(round==='final'){
+    const placed=new Set(batch.filter(b=>b.status==='confirmed').map(b=>b.email));
+    const stillPending=cache.students
+      .map(s=>s.id)
+      .filter(email=>!confirmedEmails.has(email) && !placed.has(email));
+    // 空き枠リストを作成
+    let slots=[]; progs.forEach(p=>{ for(let i=0;i<remaining[p.id];i++) slots.push(p.id); });
+    shuffle(slots); shuffle(stillPending);
+    const overflow=[];
+    stillPending.forEach(email=>{
+      const pid=slots.pop();
+      if(pid){ batch.push({email,status:'confirmed',programId:pid}); }
+      else { overflow.push(email); }
+    });
+    if(overflow.length){
+      alert(`定員不足のため ${overflow.length} 名を配置できませんでした。プログラム定員を見直してください。`);
+    }
+  }
+
+  // --- 書き込み ---
+  let wb=writeBatch(db),n=0;
+  for(const r of batch){
+    wb.set(doc(db,'results',r.email),{status:r.status,programId:r.programId,round,updatedAt:serverTimestamp()});
+    if(++n>=400){ await wb.commit(); wb=writeBatch(db); n=0; }
+  }
+  // 進行フラグ更新＋次の回へ
+  const next = round==='round1' ? (cache.config?.round2Enabled!==false?'round2':'final')
+            : round==='round2' ? 'final' : 'final';
+  const cfgUpdate={ [round+'Done']:true, currentRound: round==='final'?'final':next };
+  wb.set(doc(db,'config','lottery'),cfgUpdate,{merge:true});
+  await wb.commit();
+
+  alert(`${label(round)}を実行しました。確定 ${batch.filter(b=>b.status==='confirmed').length} 名 / 落選 ${batch.filter(b=>b.status==='lost').length} 名`);
+  await loadAll(); render();
+}
+
+// ===== 名簿出力（Excel） =====
+function viewExport(){
+  const v=document.getElementById('view');
+  const confirmedN=cache.results.filter(r=>r.status==='confirmed').length;
+  v.innerHTML=`<div class="card">
+    <h2>名簿の Excel 出力</h2>
+    <p class="muted">確定済み ${confirmedN} 名 ／ 生徒 ${cache.students.length} 名。</p>
+    <div class="hint">「暫定版」は現在の申込（currentRound）をもとに、「確定版」は抽選結果（results）をもとに出力します。</div>
+    <h3>クラス毎（A4 1枚／クラス想定）</h3>
+    <div class="toolbar">
+      <button class="btn btn-ghost" data-x="class-temp">暫定版（クラス毎）</button>
+      <button class="btn btn-primary" data-x="class-fix">確定版（クラス毎）</button>
+    </div>
+    <h3>プログラム毎（A4 1枚／プログラム想定）</h3>
+    <div class="toolbar">
+      <button class="btn btn-ghost" data-x="prog-temp">暫定版（プログラム毎）</button>
+      <button class="btn btn-primary" data-x="prog-fix">確定版（プログラム毎）</button>
+    </div>
+    <span id="xmsg" class="ok"></span>
+  </div>`;
+  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>exportExcel(b.dataset.x));
+}
+function progName(pid){ const p=cache.programs.find(x=>x.id===pid); return p?p.name:'(未確定)'; }
+function studentChoice(email,fixed){
+  if(fixed){ const r=cache.results.find(r=>r.id===email&&r.status==='confirmed'); return r?progName(r.programId):'(未確定)'; }
+  const cur=cache.config?.currentRound||'round1';
+  const a=cache.applications.find(a=>a.studentEmail===email && a.round===cur);
+  return a?progName(a.programId):'(未申込)';
+}
+async function exportExcel(kind){
+  document.getElementById('xmsg').textContent='生成中…';
+  const XLSX=(await loadXLSX());
+  const fixed=kind.endsWith('fix');
+  const wb=XLSX.utils.book_new();
+  const students=[...cache.students].sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
+
+  if(kind.startsWith('class')){
+    const classes=[...new Set(students.map(s=>s.class||'(組なし)'))];
+    for(const cls of classes){
+      const rows=[['組','番','氏名','メール', fixed?'確定プログラム':'申込プログラム']];
+      students.filter(s=>(s.class||'(組なし)')===cls).forEach(s=>
+        rows.push([s.class||'',s.number||'',s.name||'',s.id, studentChoice(s.id,fixed)]));
+      const ws=XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols']=[{wch:6},{wch:6},{wch:18},{wch:28},{wch:46}];
+      XLSX.utils.book_append_sheet(wb,ws,sheetName(`${cls}組`));
+    }
+  } else {
+    for(const p of cache.programs){
+      const rows=[[p.name],['定員: '+p.capacity],[],['組','番','氏名','メール']];
+      let members;
+      if(fixed){ members=students.filter(s=>cache.results.find(r=>r.id===s.id&&r.status==='confirmed'&&r.programId===p.id)); }
+      else{ const cur=cache.config?.currentRound||'round1';
+        members=students.filter(s=>cache.applications.find(a=>a.studentEmail===s.id&&a.round===cur&&a.programId===p.id)); }
+      members.forEach(s=>rows.push([s.class||'',s.number||'',s.name||'',s.id]));
+      rows.push([],[`人数: ${members.length} 名`]);
+      const ws=XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols']=[{wch:6},{wch:6},{wch:18},{wch:28}];
+      XLSX.utils.book_append_sheet(wb,ws,sheetName(p.name));
+    }
+  }
+  const label2=`${kind.startsWith('class')?'クラス毎':'プログラム毎'}_${fixed?'確定版':'暫定版'}`;
+  XLSX.writeFile(wb,`修学旅行名簿_${label2}.xlsx`);
+  document.getElementById('xmsg').textContent='ダウンロードしました';
+}
+function sheetName(s){ return String(s).replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,28)||'sheet'; }
+
+// ---------- utils ----------
+function val(id){return document.getElementById(id).value;}
+function label(r){return {round1:'第一次抽選',round2:'第二次抽選',final:'最終抽選'}[r];}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function toLocalInput(d){const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;}
+</script>
+</body>
+</html>
