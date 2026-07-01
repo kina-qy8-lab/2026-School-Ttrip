@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>修学旅行 理数プログラム</title>
+<title>修学旅行 プログラムさがし</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -133,8 +133,11 @@ header.top{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
 .ticket.sel .stub .chk{border-color:#fff;background:#fff;color:var(--ta)}
 .ticket.full{opacity:.55;cursor:not-allowed;filter:grayscale(.4)}
 .ticket.full:hover{transform:none}
+.ticket.locked{opacity:.55;cursor:not-allowed;filter:grayscale(.4)}
+.ticket.locked:hover{transform:none}
 .full-stamp{position:absolute;top:14px;right:70px;transform:rotate(-12deg);border:2px solid var(--hanko);color:var(--hanko);
   font-family:var(--font-display);font-weight:900;font-size:13px;padding:2px 8px;border-radius:6px;letter-spacing:.06em;background:#fff}
+.deadline-banner{margin-top:10px;background:#ffffff26;border:1px solid #ffffff55;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;position:relative}
 
 /* selected confirmed boarding pass */
 .boardingpass{--ta:#4b3fd6;--tb:#6d5ce6;display:flex;border-radius:20px;overflow:hidden;background:#fff;
@@ -215,7 +218,7 @@ dialog h2{font-family:var(--font-display);font-size:18px;margin:0 0 6px}
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="brand"><span class="dot"></span>修学旅行 理数プログラム</div>
+  <div class="brand"><span class="dot"></span>修学旅行 プログラムさがし</div>
   <div class="right" id="hdr-right"></div>
 </div></header>
 
@@ -461,17 +464,19 @@ function paintApply(round,deadline,resultForHint){
   const myPid=cache.application&&cache.application.round===round?cache.application.programId:null;
   const isModify=!!myPid, lostBefore=resultForHint&&resultForHint.status==='lost';
   const testMode=isTestAccount(me);
+  const isPastDeadline = !!(deadline?.toMillis && Date.now()>deadline.toMillis());
 
   const list=cache.programs.map((p,i)=>{
     const [a,b]=tcolor(p.order||(i+1));
     const cnt=counts[p.id]; const cap=+p.capacity||0;
     const isFull=(round!=='round1')&&typeof cnt==='number'&&cnt>=cap;
+    const inert=isFull||isPastDeadline;
     const pct=cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0;
     const tags=(p.tags||'').split('/').filter(Boolean).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
     const desc=p.description||'';
     const needsMore=desc.length>60; // 3行で収まらなさそうな長さなら「続きを読む」を出す
-    return `<div class="ticket ${p.id===myPid?'sel':''} ${isFull?'full':''}" data-id="${esc(p.id)}"
-      role="button" tabindex="${isFull?'-1':'0'}" aria-disabled="${isFull?'true':'false'}"
+    return `<div class="ticket ${p.id===myPid?'sel':''} ${isFull?'full':''} ${isPastDeadline?'locked':''}" data-id="${esc(p.id)}"
+      role="button" tabindex="${inert?'-1':'0'}" aria-disabled="${inert?'true':'false'}"
       style="--ta:${a};--tb:${b};animation-delay:${i*60}ms">
       <div class="main">
         <div class="band"><span class="rt">KYOTO ◦ OSAKA</span><span class="no">No.${String(p.order||i+1).padStart(2,'0')}</span></div>
@@ -485,33 +490,35 @@ function paintApply(round,deadline,resultForHint){
         </div>
       </div>
       <div class="stub"><span class="lab">SELECT</span><span class="chk">✓</span></div>
-      ${isFull?'<span class="full-stamp">満員</span>':''}
+      ${!isPastDeadline&&isFull?'<span class="full-stamp">満員</span>':''}
+      ${isPastDeadline?'<span class="full-stamp">受付終了</span>':''}
     </div>`;
   }).join('');
 
   $app.innerHTML=`
     <div class="hero">
-      <p class="eyebrow">${ROUND_LABEL[round]||''} ・ 受付中</p>
+      <p class="eyebrow">${ROUND_LABEL[round]||''} ・ ${isPastDeadline?'受付終了':'受付中'}</p>
       <h1>どの理数プログラムを選ぶ？</h1>
       <div class="phase">
-        <span class="now">${esc(me.name||'')}さん、${isModify?'申込みを確認・変更できます':'気になるプログラムを選ぼう'}</span>
+        <span class="now">${esc(me.name||'')}さん、${isPastDeadline?'この回の受付は終了しました':(isModify?'申込みを確認・変更できます':'気になるプログラムを選ぼう')}</span>
         ${deadline?`<span class="countdown" id="cd">締切まで --:--</span>`:''}
       </div>
-      ${lostBefore?`<p>前回は抽選で外れました。空きのあるプログラムから選んでください。</p>`:''}
+      ${isPastDeadline?`<p class="deadline-banner">⏰ 締切を過ぎたため、この回の申込み・変更はできません。抽選結果が出るまでお待ちください。</p>`:''}
+      ${!isPastDeadline&&lostBefore?`<p>前回は抽選で外れました。空きのあるプログラムから選んでください。</p>`:''}
       ${testMode?`<p style="margin-top:8px;font-size:12px;opacity:.9">🧪 このアカウントはテストアカウント（組=99・番=99）です。ここでの申込みは、管理者の「テストモード」抽選の対象になります。</p>`:''}
     </div>
     <div class="tickets" id="tk">${list}</div>
     <div class="applybar">
-      <span class="sel-name muted" id="seln">プログラムを1つ選んでください</span>
-      <button class="btn btn-primary" id="submit" disabled>${isModify?'申込みを変更':'このプログラムに申し込む'}</button>
+      <span class="sel-name muted" id="seln">${isPastDeadline?'締切を過ぎました':'プログラムを1つ選んでください'}</span>
+      <button class="btn btn-primary" id="submit" disabled>${isPastDeadline?'受付終了':(isModify?'申込みを変更':'このプログラムに申し込む')}</button>
     </div>
     <p class="err center" id="aerr"></p>`;
 
-  if(deadline) startTick(deadline);
-
-  let chosen=myPid;
+  let chosen=myPid, locked=isPastDeadline;
   const $sb=document.getElementById('submit'), $sn=document.getElementById('seln');
+
   const refresh=()=>{
+    if(locked){ $sb.disabled=true; return; }
     document.querySelectorAll('.ticket').forEach(el=>el.classList.toggle('sel',el.dataset.id===chosen));
     const p=cache.programs.find(x=>x.id===chosen);
     const unchanged=isModify&&chosen===myPid;
@@ -519,36 +526,60 @@ function paintApply(round,deadline,resultForHint){
     $sn.textContent=p?(`選択中：${p.name}`+(unchanged?'（変更なし）':'')):'プログラムを1つ選んでください';
     $sn.classList.toggle('muted',!chosen);
   };
+
+  // 締切が来た瞬間（カウントダウンが 0 になった瞬間）に画面をロックする
+  function lockApplyUI(){
+    if(locked) return;
+    locked=true;
+    document.querySelectorAll('.ticket').forEach(el=>{
+      el.classList.add('locked'); el.classList.remove('sel');
+      el.tabIndex=-1; el.setAttribute('aria-disabled','true');
+      if(!el.querySelector('.full-stamp')){
+        const s=document.createElement('span'); s.className='full-stamp'; s.textContent='受付終了'; el.appendChild(s);
+      }
+    });
+    $sb.disabled=true; $sb.textContent='受付終了';
+    $sn.textContent='締切を過ぎました'; $sn.classList.add('muted');
+    const hero=document.querySelector('.hero');
+    if(hero && !hero.querySelector('.deadline-banner')){
+      const p=document.createElement('p'); p.className='deadline-banner';
+      p.textContent='⏰ 締切を過ぎたため、この回の申込み・変更はできません。抽選結果が出るまでお待ちください。';
+      hero.appendChild(p);
+    }
+  }
+
   document.querySelectorAll('.ticket').forEach(el=>{
-    const select=()=>{ if(el.classList.contains('full'))return; chosen=el.dataset.id; refresh(); };
+    const select=()=>{ if(locked||el.classList.contains('full'))return; chosen=el.dataset.id; refresh(); };
     el.onclick=select;
-    el.onkeydown=(e)=>{ if((e.key==='Enter'||e.key===' ')&&!el.classList.contains('full')){ e.preventDefault(); select(); } };
+    el.onkeydown=(e)=>{ if((e.key==='Enter'||e.key===' ')&&!locked&&!el.classList.contains('full')){ e.preventDefault(); select(); } };
   });
   document.querySelectorAll('[data-readmore]').forEach(btn=>{
     btn.onclick=(e)=>{
       e.stopPropagation();
       const pid=btn.dataset.readmore, p=cache.programs.find(x=>x.id===pid);
       const full=btn.closest('.ticket').classList.contains('full');
-      programDetailDialog(p, full?null:()=>{ chosen=pid; refresh(); });
+      programDetailDialog(p, (full||locked)?null:()=>{ chosen=pid; refresh(); });
     };
   });
   refresh();
 
   $sb.onclick=async()=>{
-    if(!chosen)return; $sb.disabled=true; const t=$sb.textContent; $sb.textContent='送信中…';
+    if(locked||!chosen)return; $sb.disabled=true; const t=$sb.textContent; $sb.textContent='送信中…';
     try{
-      if(deadline?.toMillis && Date.now()>deadline.toMillis()) throw new Error('締切を過ぎています。');
+      if(deadline?.toMillis && Date.now()>deadline.toMillis()){ lockApplyUI(); throw new Error('締切を過ぎています。'); }
       await setDoc(doc(db,'applications',user.email),{studentEmail:user.email,programId:chosen,round,updatedAt:serverTimestamp()});
       await renderStudent();
-    }catch(e){ document.getElementById('aerr').textContent='送信に失敗しました: '+e.message; $sb.disabled=false; $sb.textContent=t; }
+    }catch(e){ document.getElementById('aerr').textContent='送信に失敗しました: '+e.message; if(!locked){ $sb.disabled=false; $sb.textContent=t; } }
   };
+
+  if(deadline) startTick(deadline, lockApplyUI);
 }
 
-function startTick(deadline){
+function startTick(deadline, onExpire){
   const el=document.getElementById('cd'); if(!el||!deadline?.toMillis)return;
   const upd=()=>{
     const ms=deadline.toMillis()-Date.now();
-    if(ms<=0){ el.textContent='締切'; el.style.background='#e0392f33'; stopTick(); return; }
+    if(ms<=0){ el.textContent='締切'; el.style.background='#e0392f33'; stopTick(); if(onExpire) onExpire(); return; }
     const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60), ss=s%60;
     const p=n=>String(n).padStart(2,'0');
     el.textContent='締切まで '+(d>0?`${d}日 `:'')+`${p(h)}:${p(m)}:${p(ss)}`;
