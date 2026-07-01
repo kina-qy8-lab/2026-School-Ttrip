@@ -113,6 +113,9 @@ header.top{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
 .ticket .body{padding:14px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
 .ticket .ttl{font-family:var(--font-display);font-weight:700;font-size:16px;line-height:1.35}
 .ticket .desc{font-size:13px;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ticket .readmore{align-self:flex-start;background:none;border:0;padding:0;margin-top:-2px;font-family:var(--font-body);
+  font-weight:700;font-size:12px;color:var(--ta,var(--primary));cursor:pointer}
+.ticket .readmore:hover{text-decoration:underline}
 .ticket .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
 .ticket .countline{display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--ink)}
 .bar{flex:1;height:6px;border-radius:99px;background:#eef1f8;overflow:hidden}
@@ -241,7 +244,10 @@ const TICKET_COLORS=[
 const tcolor=i=>TICKET_COLORS[(i-1+TICKET_COLORS.length)%TICKET_COLORS.length]||TICKET_COLORS[0];
 
 let user=null, viewMode=null, role={admin:false,student:false}, tickInt=null; // viewMode: null(自動) | 'admin' | 'student'
-let me={}, cache={programs:[],students:[],applications:[],results:[],config:null}, counts={};
+let me={}, cache={programs:[],students:[],applications:[],results:[],testResults:[],config:null}, counts={};
+
+// 組=99・番=99 で登録されたアカウント＝教員のテスト用アカウントとみなす
+function isTestAccount(s){ return !!s && String(s.class)==='99' && String(s.number)==='99'; }
 
 // PDF由来の初期8プログラム
 const SEED=[
@@ -382,6 +388,11 @@ async function renderStudent(){
     cache.programs=pg.docs.map(d=>({id:d.id,...d.data()}));
     cache.application=ap.exists()?ap.data():null;
     cache.result=rs.exists()?rs.data():null;
+    cache.testResult=null;
+    if(isTestAccount(me)){
+      const trs=await getDoc(doc(db,'testResults',email));
+      cache.testResult=trs.exists()?trs.data():null;
+    }
     await loadCountsCurrent();
     paintStudent();
   }catch(e){
@@ -401,13 +412,16 @@ async function loadCountsCurrent(){
 
 function paintStudent(){
   stopTick();
-  const cfg=cache.config, r=cache.result;
+  const cfg=cache.config;
+  const testMode=isTestAccount(me);
+  const r = testMode ? cache.testResult : cache.result;
+  const testBadge = testMode ? `<p class="muted center" style="margin-top:10px">🧪 これはテストモードの結果です（組=99・番=99）。本番の生徒の抽選には一切影響しません。</p>` : '';
   // 確定
   if(r && r.status==='confirmed'){
     const i=cache.programs.findIndex(p=>p.id===r.programId), p=cache.programs[i]||{};
     const [a,b]=tcolor((p.order)|| (i+1));
     $app.innerHTML=`
-      <div class="section-h"><h2>あなたのプログラム、確定！</h2><span class="sub">${ROUND_LABEL[r.round]||''}で決定しました</span></div>
+      <div class="section-h"><h2>あなたのプログラム、確定！</h2><span class="sub">${ROUND_LABEL[r.round]||''}で決定しました${testMode?'（テスト）':''}</span></div>
       <div class="boardingpass" style="--ta:${a};--tb:${b}">
         <div class="bp-main">
           <span class="rt">PROGRAM PASS · KYOTO / OSAKA</span>
@@ -417,7 +431,7 @@ function paintStudent(){
         </div>
         <div class="bp-stub"><div class="hanko">確定<small>${esc(ROUND_LABEL[r.round]||'CONFIRMED')}</small></div></div>
       </div>
-      <p class="muted center" style="margin-top:14px">当日を楽しみに！変更はできません。</p>`;
+      ${testMode?testBadge:'<p class="muted center" style="margin-top:14px">当日を楽しみに！変更はできません。</p>'}`;
     return;
   }
   if(!cfg){
@@ -426,23 +440,27 @@ function paintStudent(){
       <p class="muted">抽選の日程が設定されると、ここから申し込めます。</p></div>`;
     return;
   }
-  const round=cfg.currentRound, done=cfg[round+'Done'], deadline=cfg[round+'At'];
+  const round=cfg.currentRound, deadline=cfg[round+'At'];
+  // テストアカウントは本番の round1Done 等を無視し、テスト結果の有無だけで「抽選済みかどうか」を判定する
+  const done = testMode ? !!(r && r.round===round) : cfg[round+'Done'];
 
   if(done){
     const lost=r&&r.status==='lost'&&r.round===round;
     $app.innerHTML=`<div class="card resultbox"><div class="icon">${lost?'🎲':'⏳'}</div>
       <h2 style="font-family:var(--font-display)">${lost?'今回は抽選で外れました':'まだ確定していません'}</h2>
       <p class="muted">次の抽選の受付がはじまると、このページから再び申し込めます。</p>
-      <button class="btn btn-ghost" id="rl" style="margin-top:8px">最新の状態にする</button></div>`;
+      <button class="btn btn-ghost" id="rl" style="margin-top:8px">最新の状態にする</button>
+      ${testBadge}</div>`;
     document.getElementById('rl').onclick=renderStudent;
     return;
   }
-  paintApply(round,deadline);
+  paintApply(round,deadline,r);
 }
 
-function paintApply(round,deadline){
+function paintApply(round,deadline,resultForHint){
   const myPid=cache.application&&cache.application.round===round?cache.application.programId:null;
-  const isModify=!!myPid, lostBefore=cache.result&&cache.result.status==='lost';
+  const isModify=!!myPid, lostBefore=resultForHint&&resultForHint.status==='lost';
+  const testMode=isTestAccount(me);
 
   const list=cache.programs.map((p,i)=>{
     const [a,b]=tcolor(p.order||(i+1));
@@ -450,21 +468,25 @@ function paintApply(round,deadline){
     const isFull=(round!=='round1')&&typeof cnt==='number'&&cnt>=cap;
     const pct=cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0;
     const tags=(p.tags||'').split('/').filter(Boolean).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
-    return `<button class="ticket ${p.id===myPid?'sel':''} ${isFull?'full':''}" data-id="${esc(p.id)}"
-      style="--ta:${a};--tb:${b};animation-delay:${i*60}ms" ${isFull?'disabled':''}>
+    const desc=p.description||'';
+    const needsMore=desc.length>60; // 3行で収まらなさそうな長さなら「続きを読む」を出す
+    return `<div class="ticket ${p.id===myPid?'sel':''} ${isFull?'full':''}" data-id="${esc(p.id)}"
+      role="button" tabindex="${isFull?'-1':'0'}" aria-disabled="${isFull?'true':'false'}"
+      style="--ta:${a};--tb:${b};animation-delay:${i*60}ms">
       <div class="main">
         <div class="band"><span class="rt">KYOTO ◦ OSAKA</span><span class="no">No.${String(p.order||i+1).padStart(2,'0')}</span></div>
         ${p.imageUrl?`<img class="photo" src="${esc(p.imageUrl)}" alt="" loading="lazy" onerror="this.remove()">`:''}
         <div class="body">
           <div class="ttl">${esc(p.name)}</div>
-          <div class="desc">${esc(p.description||'')}</div>
+          <div class="desc">${esc(desc)}</div>
+          ${needsMore?`<button type="button" class="readmore" data-readmore="${esc(p.id)}">続きを読む ›</button>`:''}
           <div class="tags">${tags}</div>
           <div class="countline"><div class="bar"><i style="width:${pct}%"></i></div><span>${cnt==null?'—':cnt}/${cap}</span></div>
         </div>
       </div>
       <div class="stub"><span class="lab">SELECT</span><span class="chk">✓</span></div>
       ${isFull?'<span class="full-stamp">満員</span>':''}
-    </button>`;
+    </div>`;
   }).join('');
 
   $app.innerHTML=`
@@ -476,6 +498,7 @@ function paintApply(round,deadline){
         ${deadline?`<span class="countdown" id="cd">締切まで --:--</span>`:''}
       </div>
       ${lostBefore?`<p>前回は抽選で外れました。空きのあるプログラムから選んでください。</p>`:''}
+      ${testMode?`<p style="margin-top:8px;font-size:12px;opacity:.9">🧪 このアカウントはテストアカウント（組=99・番=99）です。ここでの申込みは、管理者の「テストモード」抽選の対象になります。</p>`:''}
     </div>
     <div class="tickets" id="tk">${list}</div>
     <div class="applybar">
@@ -496,7 +519,19 @@ function paintApply(round,deadline){
     $sn.textContent=p?(`選択中：${p.name}`+(unchanged?'（変更なし）':'')):'プログラムを1つ選んでください';
     $sn.classList.toggle('muted',!chosen);
   };
-  document.querySelectorAll('.ticket').forEach(el=>el.onclick=()=>{ if(el.classList.contains('full'))return; chosen=el.dataset.id; refresh(); });
+  document.querySelectorAll('.ticket').forEach(el=>{
+    const select=()=>{ if(el.classList.contains('full'))return; chosen=el.dataset.id; refresh(); };
+    el.onclick=select;
+    el.onkeydown=(e)=>{ if((e.key==='Enter'||e.key===' ')&&!el.classList.contains('full')){ e.preventDefault(); select(); } };
+  });
+  document.querySelectorAll('[data-readmore]').forEach(btn=>{
+    btn.onclick=(e)=>{
+      e.stopPropagation();
+      const pid=btn.dataset.readmore, p=cache.programs.find(x=>x.id===pid);
+      const full=btn.closest('.ticket').classList.contains('full');
+      programDetailDialog(p, full?null:()=>{ chosen=pid; refresh(); });
+    };
+  });
   refresh();
 
   $sb.onclick=async()=>{
@@ -522,18 +557,42 @@ function startTick(deadline){
 }
 function stopTick(){ if(tickInt){clearInterval(tickInt);tickInt=null;} }
 
+// プログラムの詳細（全文）をダイアログで表示。onSelect が渡された場合のみ「選ぶ」ボタンを出す
+function programDetailDialog(p, onSelect){
+  const cap=+p.capacity||0, cnt=counts[p.id];
+  const cntTxt = cnt==null ? '—' : `${cnt} / ${cap} 名`;
+  const tags=(p.tags||'').split('/').filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+  dlgbody.innerHTML=`
+    ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:12px;background:#eef1f8" onerror="this.remove()">`:''}
+    <h2>${esc(p.name)}</h2>
+    <p class="muted" style="margin:2px 0 10px">申込状況：${esc(cntTxt)}</p>
+    ${tags?`<div class="tags" style="margin-bottom:10px">${tags}</div>`:''}
+    <p style="white-space:pre-wrap;line-height:1.8">${esc(p.description||'')}</p>
+    <div class="toolbar" style="justify-content:flex-end;margin-top:18px">
+      <button class="btn btn-ghost" id="pd-close">閉じる</button>
+      ${onSelect?`<button class="btn btn-primary" id="pd-select">このプログラムを選ぶ</button>`:''}
+    </div>`;
+  dlg.showModal();
+  document.getElementById('pd-close').onclick=()=>dlg.close();
+  const sel=document.getElementById('pd-select');
+  if(sel) sel.onclick=()=>{ dlg.close(); onSelect(); };
+}
+
 // ================= 管理者画面 =================
 let activeTab='programs';
+let lotteryMode='production'; // 'production' | 'test'
 async function loadAdmin(){
-  const [pg,st,ap,rs,cf]=await Promise.all([
+  const [pg,st,ap,rs,cf,tr]=await Promise.all([
     getDocs(query(collection(db,'programs'),orderBy('order'))).catch(()=>getDocs(collection(db,'programs'))),
     getDocs(collection(db,'students')), getDocs(collection(db,'applications')),
     getDocs(collection(db,'results')), getDoc(doc(db,'config','lottery')),
+    getDocs(collection(db,'testResults')),
   ]);
   cache.programs=pg.docs.map(d=>({id:d.id,...d.data()}));
   cache.students=st.docs.map(d=>({id:d.id,...d.data()}));
   cache.applications=ap.docs.map(d=>({id:d.id,...d.data()}));
   cache.results=rs.docs.map(d=>({id:d.id,...d.data()}));
+  cache.testResults=tr.docs.map(d=>({id:d.id,...d.data()}));
   cache.config=cf.exists()?cf.data():null;
 }
 function renderAdmin(){
@@ -558,13 +617,14 @@ function viewPrograms(){
   const v=document.getElementById('view');
   const conf=pid=>cache.results.filter(r=>r.status==='confirmed'&&r.programId===pid).length;
   const totalCap=cache.programs.reduce((s,p)=>s+(+p.capacity||0),0);
+  const realStudentCount=cache.students.filter(s=>!isTestAccount(s)).length;
   v.innerHTML=`<div class="card">
     <div class="toolbar">
       <button class="btn btn-primary" id="add">＋ プログラムを追加</button>
       ${cache.programs.length===0?`<button class="btn btn-ghost" id="seed">添付PDFの8件を投入</button>`:''}
     </div>
-    <p class="muted">登録 ${cache.programs.length} 件 ／ 定員合計 <b>${totalCap}</b> 名 ／ 生徒 ${cache.students.length} 名
-      ${totalCap<cache.students.length?'<span class="pill pill-bad">定員不足</span>':'<span class="pill pill-ok">充足</span>'}</p>
+    <p class="muted">登録 ${cache.programs.length} 件 ／ 定員合計 <b>${totalCap}</b> 名 ／ 生徒 ${realStudentCount} 名（教員テストアカウント除く）
+      ${totalCap<realStudentCount?'<span class="pill pill-bad">定員不足</span>':'<span class="pill pill-ok">充足</span>'}</p>
     <div class="grid-prog">${cache.programs.map((p,i)=>{const[a,b]=tcolor(p.order||(i+1));return `
       <div class="pcard" style="--ta:${a};--tb:${b}">
         ${p.imageUrl?`<img class="photo" src="${esc(p.imageUrl)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;ph&quot;></div>'">`:'<div class="ph"></div>'}
@@ -682,17 +742,30 @@ function viewLottery(){
   const v=document.getElementById('view'); const c=cache.config||{};
   const tsVal=ts=>ts&&ts.toDate?toLocalInput(ts.toDate()):'';
   const lastDone=lastCompletedRound(c);
+  const mode=lotteryMode;
+  const testEmailSet=new Set(cache.students.filter(isTestAccount).map(s=>s.id));
+
   const stepRow=(round,label)=>{
     const done=c[round+'Done'], cur=c.currentRound===round, canUndo=done&&round===lastDone;
     const statusPill=done?'<span class="pill pill-ok">実行済み</span>':cur?'<span class="pill pill-info">受付中</span>':'<span class="pill pill-warn">未開始</span>';
     let action;
-    if(!done&&cur) action=`<button class="btn btn-ok" id="run-${round}">この回の抽選を実行</button>`;
+    if(mode==='test'){
+      action = cur ? '<span class="muted">↓ 下の「テストモード実行」で練習できます</span>' : '<span class="muted">—</span>';
+    } else if(!done&&cur) action=`<button class="btn btn-ok" id="run-${round}">この回の抽選を実行</button>`;
     else if(canUndo) action=`<button class="btn btn-bad" id="undo-${round}">結果を取り消す</button><span class="muted" style="margin-left:8px">この回の受付前に戻ります</span>`;
     else if(done) action='<span class="muted">完了</span>';
     else action='<span class="muted">前の回の抽選を待っています</span>';
     return `<div class="card" style="background:#fbfcff;margin-bottom:10px">
       <b>${label}</b> ${statusPill}
       <div class="toolbar" style="margin-top:8px">${action}</div></div>`;};
+
+  const testStudents=cache.students.filter(isTestAccount);
+  const testStuByEmail={}; testStudents.forEach(s=>testStuByEmail[s.id]=s);
+  const testProgName=pid=>{const p=cache.programs.find(x=>x.id===pid);return p?p.name:'(不明)';};
+  const testSummaryRows=cache.testResults.filter(r=>testEmailSet.has(r.id))
+    .map(r=>`<tr><td>${esc(testStuByEmail[r.id]?.name||r.id)}</td><td>${esc(ROUND_LABEL[r.round]||r.round)}</td>
+      <td>${r.status==='confirmed'?`<span class="pill pill-ok">確定</span> ${esc(testProgName(r.programId))}`:'<span class="pill pill-bad">落選</span>'}</td></tr>`).join('');
+
   v.innerHTML=`<div class="card">
     <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">抽選日程</h2>
     <div class="row3">
@@ -701,25 +774,58 @@ function viewLottery(){
       <div><label>最終抽選 締切</label><input type="datetime-local" id="df" value="${tsVal(c.finalAt)}"></div></div>
     <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="r2en" style="width:auto" ${c.round2Enabled!==false?'checked':''}> 第二次抽選を実施する</label>
     <div class="toolbar" style="margin-top:10px"><button class="btn btn-primary" id="savecfg">日程を保存</button><span class="ok" id="cfgmsg"></span></div></div>
+
   <div class="card">
-    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">抽選の実行</h2>
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 4px">抽選の実行モード</h2>
+    <p class="muted" style="margin:0 0 10px">
+      ${mode==='test'
+        ? 'テストモード：組=99・番=99 で登録した教員アカウントだけを対象に、各プログラム定員1名として練習抽選を行います。本番の生徒データ・定員には一切影響せず、何度でもやり直せます。'
+        : '本番モード：教員（組=99・番=99）を除いた生徒のみを対象に、実際の定員で抽選を行います。'}
+    </p>
+    <div class="toolbar">
+      <button class="btn ${mode==='production'?'btn-primary':'btn-ghost'}" id="mode-prod">本番モード</button>
+      <button class="btn ${mode==='test'?'btn-primary':'btn-ghost'}" id="mode-test">テストモード（教員のみ）</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">${mode==='test'?'テストモードの実行':'抽選の実行（本番）'}</h2>
     <p class="muted">現在の受付: <b>${esc(ROUND_LABEL[c.currentRound]||'未開始')}</b></p>
     ${stepRow('round1','第一次抽選')}
     ${c.round2Enabled!==false?stepRow('round2','第二次抽選'):'<p class="muted">第二次抽選は「実施しない」設定です。</p>'}
     ${stepRow('final','最終抽選')}
-    <div class="hint">「抽選を実行」を押すと結果を確定します。直近に実行した回に限り「結果を取り消す」でその回の受付前の状態に戻せます（1つ前の回までしか戻せません。例：最終抽選が完了した後は、最終抽選のみ取り消せます。第二次抽選を実施しない設定の場合は、第一次抽選から直接最終抽選に進むため、最終抽選の前段階は第一次抽選になります）。取り消すと、その回で確定・落選した生徒は申込み受付中の状態に戻り、選択していたプログラム内容はそのまま保持されます。</div>
-    <h3 style="font-family:var(--font-display);font-size:14px;margin:14px 0 6px">申込・確定状況</h3>
+    ${mode==='production'?`
+    <div class="hint">「抽選を実行」を押すと結果を確定します。直近に実行した回に限り「結果を取り消す」でその回の受付前の状態に戻せます（1つ前の回までしか戻せません）。取り消すと、その回で確定・落選した生徒は申込み受付中の状態に戻り、選択していたプログラム内容はそのまま保持されます。</div>
+    `:`
+    <div class="card" style="background:#fff7ef;border-color:#ffd9ad;margin-top:4px">
+      <b>🧪 テスト抽選（対象：${esc(ROUND_LABEL[c.currentRound]||'―')}）</b>
+      <p class="muted" style="margin:6px 0 12px">組=99・番=99 の教員アカウントのうち、この回に申込み済みの人だけを対象に、各プログラム定員1名で抽選します。生徒の申込・定員・本番の進行状況には一切影響しません。教員登録数：${testStudents.length} 名。</p>
+      <div class="toolbar">
+        <button class="btn btn-ok" id="run-test">テスト抽選を実行</button>
+        <button class="btn btn-ghost" id="reset-test">テスト結果をリセット</button>
+      </div>
+      ${testSummaryRows?`<table style="margin-top:14px"><thead><tr><th>教員</th><th>回</th><th>結果</th></tr></thead><tbody>${testSummaryRows}</tbody></table>`
+        :'<p class="muted" style="margin-top:10px">まだテスト結果はありません。</p>'}
+    </div>
+    `}
+    <h3 style="font-family:var(--font-display);font-size:14px;margin:14px 0 6px">申込・確定状況（本番・生徒のみ）</h3>
     <table><thead><tr><th>プログラム</th><th>定員</th><th>今回申込</th><th>確定</th><th>空き</th></tr></thead><tbody>
-    ${cache.programs.map(p=>{const apps=cache.applications.filter(a=>a.programId===p.id&&a.round===(c.currentRound||'round1')).length;
+    ${cache.programs.map(p=>{
+      const apps=cache.applications.filter(a=>a.programId===p.id&&a.round===(c.currentRound||'round1')&&!testEmailSet.has(a.studentEmail)).length;
       const cf=cache.results.filter(r=>r.status==='confirmed'&&r.programId===p.id).length;
       return `<tr><td>${esc(p.name)}</td><td>${esc(p.capacity)}</td><td>${apps}</td><td>${cf}</td><td>${(+p.capacity||0)-cf}</td></tr>`;}).join('')}
     </tbody></table>
-    <p class="muted" style="margin-top:8px">未確定: ${cache.students.length-cache.results.filter(r=>r.status==='confirmed').length} 名</p></div>`;
+    <p class="muted" style="margin-top:8px">未確定（生徒）: ${cache.students.filter(s=>!isTestAccount(s)).length-cache.results.filter(r=>r.status==='confirmed').length} 名</p></div>`;
+
   document.getElementById('savecfg').onclick=saveConfig;
+  document.getElementById('mode-prod').onclick=()=>{lotteryMode='production';viewLottery();};
+  document.getElementById('mode-test').onclick=()=>{lotteryMode='test';viewLottery();};
   ['round1','round2','final'].forEach(r=>{
     const b=document.getElementById('run-'+r); if(b)b.onclick=()=>runLottery(r);
     const u=document.getElementById('undo-'+r); if(u)u.onclick=()=>undoLottery(r);
   });
+  const rt=document.getElementById('run-test'); if(rt) rt.onclick=runTestLottery;
+  const xt=document.getElementById('reset-test'); if(xt) xt.onclick=resetTestResults;
 }
 async function saveConfig(){
   const d1=val('d1'),d2=val('d2'),df=val('df'),r2=document.getElementById('r2en').checked;
@@ -738,11 +844,12 @@ async function runLottery(round){
   if(!confirm(`${ROUND_LABEL[round]}を実行します。よろしいですか？（実行後も「結果を取り消す」で直前の状態に戻せますが、次の回の抽選を行うと取り消せなくなります）`))return;
   await loadAdmin();
   const progs=cache.programs, confByProg={}, confEmails=new Set();
+  const testEmailSet=new Set(cache.students.filter(isTestAccount).map(s=>s.id)); // 教員（組99・番99）は本番の抽選対象から除外
   progs.forEach(p=>confByProg[p.id]=0);
   cache.results.forEach(r=>{if(r.status==='confirmed'){confByProg[r.programId]=(confByProg[r.programId]||0)+1;confEmails.add(r.id);}});
   const remaining={}; progs.forEach(p=>remaining[p.id]=(+p.capacity||0)-(confByProg[p.id]||0));
   const byProg={}; progs.forEach(p=>byProg[p.id]=[]);
-  const appsThisRound=cache.applications.filter(a=>a.round===round&&!confEmails.has(a.studentEmail));
+  const appsThisRound=cache.applications.filter(a=>a.round===round&&!confEmails.has(a.studentEmail)&&!testEmailSet.has(a.studentEmail));
   appsThisRound.forEach(a=>{if(byProg[a.programId])byProg[a.programId].push(a.studentEmail);});
   // 取り消し（結果取り消し）用に、抽選直前の申込内容を保存しておく
   const appSnapshot={}; appsThisRound.forEach(a=>{appSnapshot[a.studentEmail]=a.programId;});
@@ -755,7 +862,7 @@ async function runLottery(round){
   }
   if(round==='final'){
     const placed=new Set(batch.filter(b=>b.status==='confirmed').map(b=>b.email));
-    const pend=cache.students.map(s=>s.id).filter(e=>!confEmails.has(e)&&!placed.has(e));
+    const pend=cache.students.filter(s=>!isTestAccount(s)).map(s=>s.id).filter(e=>!confEmails.has(e)&&!placed.has(e));
     let slots=[]; progs.forEach(p=>{for(let i=0;i<remaining[p.id];i++)slots.push(p.id);});
     shuffle(slots); shuffle(pend); const overflow=[];
     pend.forEach(e=>{const pid=slots.pop(); pid?batch.push({email:e,status:'confirmed',programId:pid}):overflow.push(e);});
@@ -769,6 +876,58 @@ async function runLottery(round){
     ['appSnapshot_'+round]:appSnapshot},{merge:true});
   await wb.commit();
   alert(`${ROUND_LABEL[round]}を実行しました。確定 ${batch.filter(b=>b.status==='confirmed').length} 名 / 落選 ${batch.filter(b=>b.status==='lost').length} 名`);
+  await loadAdmin(); renderAdmin();
+}
+
+async function runTestLottery(){
+  const cfg=cache.config;
+  if(!cfg){ alert('抽選日程が未設定です。先に「抽選日程」を保存してください。'); return; }
+  const round=cfg.currentRound;
+  const testStudents=cache.students.filter(isTestAccount);
+  if(testStudents.length===0){ alert('組=99・番=99 で登録された教員アカウントが見つかりません。先に「生徒名簿」タブで登録してください。'); return; }
+  if(!confirm(`テストモードで「${ROUND_LABEL[round]}」の抽選を実行します。\n対象：組=99・番=99 の教員アカウント（各プログラム定員1名）\n本番の生徒データ・定員には一切影響しません。\nよろしいですか？`))return;
+  await loadAdmin();
+  const progs=cache.programs;
+  const testEmailSet=new Set(testStudents.map(s=>s.id));
+  const confByProg={}; progs.forEach(p=>confByProg[p.id]=0);
+  const confEmails=new Set();
+  cache.testResults.forEach(r=>{ if(r.status==='confirmed'&&testEmailSet.has(r.id)){ confByProg[r.programId]=(confByProg[r.programId]||0)+1; confEmails.add(r.id); } });
+  const remaining={}; progs.forEach(p=>remaining[p.id]=Math.max(0,1-(confByProg[p.id]||0))); // テストモードは各プログラム定員1名固定
+
+  const byProg={}; progs.forEach(p=>byProg[p.id]=[]);
+  cache.applications.filter(a=>a.round===round&&testEmailSet.has(a.studentEmail)&&!confEmails.has(a.studentEmail))
+    .forEach(a=>{ if(byProg[a.programId]) byProg[a.programId].push(a.studentEmail); });
+
+  const batch=[];
+  for(const p of progs){
+    const applicants=shuffle([...byProg[p.id]]), avail=remaining[p.id];
+    if(applicants.length<=avail){ applicants.forEach(e=>batch.push({email:e,status:'confirmed',programId:p.id})); remaining[p.id]-=applicants.length; }
+    else{ applicants.slice(0,avail).forEach(e=>batch.push({email:e,status:'confirmed',programId:p.id}));
+          applicants.slice(avail).forEach(e=>batch.push({email:e,status:'lost',programId:p.id})); remaining[p.id]=0; }
+  }
+  if(round==='final'){
+    const placed=new Set(batch.filter(b=>b.status==='confirmed').map(b=>b.email));
+    const pend=[...testEmailSet].filter(e=>!confEmails.has(e)&&!placed.has(e));
+    let slots=[]; progs.forEach(p=>{for(let i=0;i<remaining[p.id];i++)slots.push(p.id);});
+    shuffle(slots); shuffle(pend);
+    pend.forEach(e=>{ const pid=slots.pop(); if(pid) batch.push({email:e,status:'confirmed',programId:pid}); });
+  }
+
+  if(batch.length===0){ alert(`「${ROUND_LABEL[round]}」に申込み済みの教員アカウントがありません。まず教員アカウントで生徒画面からプログラムに申し込んでください。`); return; }
+
+  const ops=batch.map(r=>({type:'set',ref:doc(db,'testResults',r.email),data:{status:r.status,programId:r.programId,round,updatedAt:serverTimestamp()}}));
+  await commitInChunks(ops);
+  alert(`テスト抽選（${ROUND_LABEL[round]}）を実行しました。\n確定 ${batch.filter(b=>b.status==='confirmed').length} 名 / 落選 ${batch.filter(b=>b.status==='lost').length} 名\n（本番の生徒データ・定員には影響していません）`);
+  await loadAdmin(); renderAdmin();
+}
+
+async function resetTestResults(){
+  await loadAdmin();
+  if(cache.testResults.length===0){ alert('リセットするテスト結果はありません。'); return; }
+  if(!confirm('テスト結果をすべてリセットします。よろしいですか？（本番データには影響しません）'))return;
+  const ops=cache.testResults.map(r=>({type:'delete',ref:doc(db,'testResults',r.id)}));
+  await commitInChunks(ops);
+  alert('テスト結果をリセットしました。');
   await loadAdmin(); renderAdmin();
 }
 
@@ -815,10 +974,11 @@ async function undoLottery(round){
 // ---- Excel 出力 ----
 function viewExport(){
   const v=document.getElementById('view'); const cn=cache.results.filter(r=>r.status==='confirmed').length;
+  const realStudentCount=cache.students.filter(s=>!isTestAccount(s)).length;
   v.innerHTML=`<div class="card">
     <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">名簿の Excel 出力</h2>
-    <p class="muted">確定済み ${cn} 名 ／ 生徒 ${cache.students.length} 名。</p>
-    <div class="hint">「暫定版」は現在の申込（受付中の回）から、「確定版」は抽選結果から出力します。</div>
+    <p class="muted">確定済み ${cn} 名 ／ 生徒 ${realStudentCount} 名（教員テストアカウントは出力対象外）。</p>
+    <div class="hint">「暫定版」は現在の申込（受付中の回）から、「確定版」は抽選結果から出力します。組=99・番=99 の教員テストアカウントは含まれません。</div>
     <h3 style="font-family:var(--font-display);font-size:14px">クラス毎（A4 1枚/クラス想定）</h3>
     <div class="toolbar"><button class="btn btn-ghost" data-x="class-temp">暫定版（クラス毎）</button>
       <button class="btn btn-primary" data-x="class-fix">確定版（クラス毎）</button></div>
@@ -837,7 +997,7 @@ function choiceOf(email,fixed){
 async function exportExcel(kind){
   document.getElementById('xmsg').textContent='生成中…';
   const XLSX=await loadXLSX(); const fixed=kind.endsWith('fix'); const wb=XLSX.utils.book_new();
-  const students=[...cache.students].sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
+  const students=[...cache.students].filter(s=>!isTestAccount(s)).sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
   if(kind.startsWith('class')){
     [...new Set(students.map(s=>s.class||'(組なし)'))].forEach(cls=>{
       const rows=[['組','番','氏名','メール',fixed?'確定プログラム':'申込プログラム']];
