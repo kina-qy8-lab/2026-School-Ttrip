@@ -109,6 +109,7 @@ header.top{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
   display:flex;align-items:center;justify-content:space-between}
 .ticket .band .rt{font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;opacity:.95}
 .ticket .band .no{font-family:var(--font-mono);font-weight:700;font-size:13px}
+.ticket .photo{width:100%;height:96px;object-fit:cover;display:block;background:#eef1f8}
 .ticket .body{padding:14px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
 .ticket .ttl{font-family:var(--font-display);font-weight:700;font-size:16px;line-height:1.35}
 .ticket .desc{font-size:13px;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -176,6 +177,7 @@ th{color:var(--ink-soft);font-weight:700;font-size:12px;letter-spacing:.02em}
 .grid-prog{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
 .pcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
 .pcard .ph{height:8px;background:linear-gradient(90deg,var(--ta,#4b3fd6),var(--tb,#6d5ce6))}
+.pcard .photo{width:100%;height:104px;object-fit:cover;display:block;background:#eef1f8}
 .pcard .pc{padding:13px}
 .pcard .pt{font-family:var(--font-display);font-weight:700;font-size:14px;line-height:1.35}
 .hint{background:#eef0ff;border:1px solid #d8d4ff;border-radius:12px;padding:12px 14px;font-size:13px;color:#3b328c;margin:10px 0}
@@ -452,6 +454,7 @@ function paintApply(round,deadline){
       style="--ta:${a};--tb:${b};animation-delay:${i*60}ms" ${isFull?'disabled':''}>
       <div class="main">
         <div class="band"><span class="rt">KYOTO ◦ OSAKA</span><span class="no">No.${String(p.order||i+1).padStart(2,'0')}</span></div>
+        ${p.imageUrl?`<img class="photo" src="${esc(p.imageUrl)}" alt="" loading="lazy" onerror="this.remove()">`:''}
         <div class="body">
           <div class="ttl">${esc(p.name)}</div>
           <div class="desc">${esc(p.description||'')}</div>
@@ -563,7 +566,9 @@ function viewPrograms(){
     <p class="muted">登録 ${cache.programs.length} 件 ／ 定員合計 <b>${totalCap}</b> 名 ／ 生徒 ${cache.students.length} 名
       ${totalCap<cache.students.length?'<span class="pill pill-bad">定員不足</span>':'<span class="pill pill-ok">充足</span>'}</p>
     <div class="grid-prog">${cache.programs.map((p,i)=>{const[a,b]=tcolor(p.order||(i+1));return `
-      <div class="pcard" style="--ta:${a};--tb:${b}"><div class="ph"></div><div class="pc">
+      <div class="pcard" style="--ta:${a};--tb:${b}">
+        ${p.imageUrl?`<img class="photo" src="${esc(p.imageUrl)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;ph&quot;></div>'">`:'<div class="ph"></div>'}
+        <div class="pc">
         <div class="pt">${esc(p.name)}</div>
         <div class="muted" style="margin:6px 0">定員 ${esc(p.capacity)}／確定 ${conf(p.id)}</div>
         <div class="toolbar"><button class="btn btn-ghost" data-edit="${esc(p.id)}">編集</button>
@@ -586,13 +591,18 @@ function progDialog(p){
     <label>内容</label><textarea id="f-desc">${esc(p?.description||'')}</textarea>
     <div class="row2"><div><label>定員</label><input id="f-cap" type="number" min="0" value="${esc(p?.capacity??40)}"></div>
     <div><label>表示順</label><input id="f-order" type="number" value="${esc(p?.order??(cache.programs.length+1))}"></div></div>
-    <label>画像URL（任意・空欄ならカラーで表示）</label><input id="f-img" value="${esc(p?.imageUrl||'')}">
+    <label>画像URL（任意・空欄ならカラーで表示）</label><input id="f-img" value="${esc(p?.imageUrl||'')}" placeholder="images/01.jpg または https://...">
+    <img id="f-img-prev" src="${esc(p?.imageUrl||'')}" alt="" style="display:${p?.imageUrl?'block':'none'};width:100%;height:120px;object-fit:cover;border-radius:10px;margin-top:8px;background:#eef1f8" onerror="this.style.display='none'">
     <label>タグ（/区切り）</label><input id="f-tags" value="${esc(p?.tags||'')}">
     <p class="err" id="f-err"></p>
     <div class="toolbar" style="justify-content:flex-end;margin-top:12px">
       <button class="btn btn-ghost" id="f-cancel">キャンセル</button>
       <button class="btn btn-primary" id="f-save">保存</button></div>`;
   dlg.showModal();
+  document.getElementById('f-img').oninput=(e)=>{
+    const prev=document.getElementById('f-img-prev'), v=e.target.value.trim();
+    if(v){ prev.src=v; prev.style.display='block'; } else { prev.style.display='none'; }
+  };
   document.getElementById('f-cancel').onclick=()=>dlg.close();
   document.getElementById('f-save').onclick=async()=>{
     const data={name:val('f-name').trim(),description:val('f-desc').trim(),capacity:+val('f-cap')||0,
@@ -671,10 +681,18 @@ function studentDialog(){
 function viewLottery(){
   const v=document.getElementById('view'); const c=cache.config||{};
   const tsVal=ts=>ts&&ts.toDate?toLocalInput(ts.toDate()):'';
-  const stepRow=(round,label)=>{const done=c[round+'Done'],cur=c.currentRound===round;
+  const lastDone=lastCompletedRound(c);
+  const stepRow=(round,label)=>{
+    const done=c[round+'Done'], cur=c.currentRound===round, canUndo=done&&round===lastDone;
+    const statusPill=done?'<span class="pill pill-ok">実行済み</span>':cur?'<span class="pill pill-info">受付中</span>':'<span class="pill pill-warn">未開始</span>';
+    let action;
+    if(!done&&cur) action=`<button class="btn btn-ok" id="run-${round}">この回の抽選を実行</button>`;
+    else if(canUndo) action=`<button class="btn btn-bad" id="undo-${round}">結果を取り消す</button><span class="muted" style="margin-left:8px">この回の受付前に戻ります</span>`;
+    else if(done) action='<span class="muted">完了</span>';
+    else action='<span class="muted">前の回の抽選を待っています</span>';
     return `<div class="card" style="background:#fbfcff;margin-bottom:10px">
-      <b>${label}</b> ${done?'<span class="pill pill-ok">実行済み</span>':cur?'<span class="pill pill-info">受付中</span>':'<span class="pill pill-warn">未開始</span>'}
-      <div class="toolbar" style="margin-top:8px">${!done?`<button class="btn btn-ok" id="run-${round}">この回の抽選を実行</button>`:'<span class="muted">完了</span>'}</div></div>`;};
+      <b>${label}</b> ${statusPill}
+      <div class="toolbar" style="margin-top:8px">${action}</div></div>`;};
   v.innerHTML=`<div class="card">
     <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">抽選日程</h2>
     <div class="row3">
@@ -689,7 +707,7 @@ function viewLottery(){
     ${stepRow('round1','第一次抽選')}
     ${c.round2Enabled!==false?stepRow('round2','第二次抽選'):'<p class="muted">第二次抽選は「実施しない」設定です。</p>'}
     ${stepRow('final','最終抽選')}
-    <div class="hint">「抽選を実行」を押すと結果を確定します（取り消し不可）。事前にテスト用プロジェクトでの通し試験を推奨します。</div>
+    <div class="hint">「抽選を実行」を押すと結果を確定します。直近に実行した回に限り「結果を取り消す」でその回の受付前の状態に戻せます（1つ前の回までしか戻せません。例：最終抽選が完了した後は、最終抽選のみ取り消せます。第二次抽選を実施しない設定の場合は、第一次抽選から直接最終抽選に進むため、最終抽選の前段階は第一次抽選になります）。取り消すと、その回で確定・落選した生徒は申込み受付中の状態に戻り、選択していたプログラム内容はそのまま保持されます。</div>
     <h3 style="font-family:var(--font-display);font-size:14px;margin:14px 0 6px">申込・確定状況</h3>
     <table><thead><tr><th>プログラム</th><th>定員</th><th>今回申込</th><th>確定</th><th>空き</th></tr></thead><tbody>
     ${cache.programs.map(p=>{const apps=cache.applications.filter(a=>a.programId===p.id&&a.round===(c.currentRound||'round1')).length;
@@ -698,7 +716,10 @@ function viewLottery(){
     </tbody></table>
     <p class="muted" style="margin-top:8px">未確定: ${cache.students.length-cache.results.filter(r=>r.status==='confirmed').length} 名</p></div>`;
   document.getElementById('savecfg').onclick=saveConfig;
-  ['round1','round2','final'].forEach(r=>{const b=document.getElementById('run-'+r);if(b)b.onclick=()=>runLottery(r);});
+  ['round1','round2','final'].forEach(r=>{
+    const b=document.getElementById('run-'+r); if(b)b.onclick=()=>runLottery(r);
+    const u=document.getElementById('undo-'+r); if(u)u.onclick=()=>undoLottery(r);
+  });
 }
 async function saveConfig(){
   const d1=val('d1'),d2=val('d2'),df=val('df'),r2=document.getElementById('r2en').checked;
@@ -714,15 +735,17 @@ async function saveConfig(){
 // ---- 抽選エンジン ----
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
 async function runLottery(round){
-  if(!confirm(`${ROUND_LABEL[round]}を実行します。よろしいですか？（取り消せません）`))return;
+  if(!confirm(`${ROUND_LABEL[round]}を実行します。よろしいですか？（実行後も「結果を取り消す」で直前の状態に戻せますが、次の回の抽選を行うと取り消せなくなります）`))return;
   await loadAdmin();
   const progs=cache.programs, confByProg={}, confEmails=new Set();
   progs.forEach(p=>confByProg[p.id]=0);
   cache.results.forEach(r=>{if(r.status==='confirmed'){confByProg[r.programId]=(confByProg[r.programId]||0)+1;confEmails.add(r.id);}});
   const remaining={}; progs.forEach(p=>remaining[p.id]=(+p.capacity||0)-(confByProg[p.id]||0));
   const byProg={}; progs.forEach(p=>byProg[p.id]=[]);
-  cache.applications.filter(a=>a.round===round&&!confEmails.has(a.studentEmail))
-    .forEach(a=>{if(byProg[a.programId])byProg[a.programId].push(a.studentEmail);});
+  const appsThisRound=cache.applications.filter(a=>a.round===round&&!confEmails.has(a.studentEmail));
+  appsThisRound.forEach(a=>{if(byProg[a.programId])byProg[a.programId].push(a.studentEmail);});
+  // 取り消し（結果取り消し）用に、抽選直前の申込内容を保存しておく
+  const appSnapshot={}; appsThisRound.forEach(a=>{appSnapshot[a.studentEmail]=a.programId;});
   const batch=[];
   for(const p of progs){
     const applicants=shuffle([...byProg[p.id]]), avail=remaining[p.id];
@@ -742,9 +765,50 @@ async function runLottery(round){
   for(const r of batch){ wb.set(doc(db,'results',r.email),{status:r.status,programId:r.programId,round,updatedAt:serverTimestamp()});
     if(++n>=400){await wb.commit();wb=writeBatch(db);n=0;} }
   const next=round==='round1'?(cache.config?.round2Enabled!==false?'round2':'final'):'final';
-  wb.set(doc(db,'config','lottery'),{[round+'Done']:true,currentRound:round==='final'?'final':next},{merge:true});
+  wb.set(doc(db,'config','lottery'),{[round+'Done']:true,currentRound:round==='final'?'final':next,
+    ['appSnapshot_'+round]:appSnapshot},{merge:true});
   await wb.commit();
   alert(`${ROUND_LABEL[round]}を実行しました。確定 ${batch.filter(b=>b.status==='confirmed').length} 名 / 落選 ${batch.filter(b=>b.status==='lost').length} 名`);
+  await loadAdmin(); renderAdmin();
+}
+
+async function commitInChunks(ops){ // ops: [{type:'set'|'delete', ref, data?}]
+  let wb=writeBatch(db), n=0;
+  for(const op of ops){
+    if(op.type==='set') wb.set(op.ref, op.data, {merge:false});
+    else wb.delete(op.ref);
+    if(++n>=450){ await wb.commit(); wb=writeBatch(db); n=0; }
+  }
+  if(n>0) await wb.commit();
+}
+
+// 「この回より前」には戻れない設計：直近に実行済みの回だけが取り消し対象になる
+function lastCompletedRound(cfg){
+  const order = cfg.round2Enabled!==false ? ['round1','round2','final'] : ['round1','final'];
+  let last=null;
+  for(const r of order){ if(cfg[r+'Done']) last=r; }
+  return last;
+}
+
+async function undoLottery(round){
+  await loadAdmin();
+  const cfg=cache.config||{};
+  if(lastCompletedRound(cfg)!==round){
+    alert('この回はすでに次の抽選が進んでいるため、取り消せません（1つ前の回までしか戻せません）。');
+    await loadAdmin(); renderAdmin(); return;
+  }
+  if(!confirm(`${ROUND_LABEL[round]}の結果を取り消します。\nこの回で確定・落選した生徒は、抽選前（申込み受付中）の状態に戻ります。選択していたプログラムはそのまま保持されます。\nよろしいですか？`)) return;
+
+  const snapshot=cfg['appSnapshot_'+round]||{};
+  const ops=[];
+  cache.results.filter(r=>r.round===round).forEach(r=>ops.push({type:'delete',ref:doc(db,'results',r.id)}));
+  Object.entries(snapshot).forEach(([email,programId])=>{
+    ops.push({type:'set',ref:doc(db,'applications',email),
+      data:{studentEmail:email,programId,round,updatedAt:serverTimestamp()}});
+  });
+  await commitInChunks(ops);
+  await setDoc(doc(db,'config','lottery'),{[round+'Done']:false,currentRound:round},{merge:true});
+  alert(`${ROUND_LABEL[round]}の結果を取り消しました。${ROUND_LABEL[round]}の受付状態に戻りました。`);
   await loadAdmin(); renderAdmin();
 }
 
