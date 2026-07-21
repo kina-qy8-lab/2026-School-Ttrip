@@ -164,6 +164,7 @@ header.top{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
 /* result state */
 .resultbox{text-align:center;padding:30px 20px}
 .resultbox .icon{font-size:40px}
+.resultbox.lostbox{background:linear-gradient(180deg,#fff,#fff8f7);border-color:#f6cfcb}
 
 /* ---------- admin ---------- */
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 16px}
@@ -467,7 +468,35 @@ function paintStudent(){
     document.getElementById('rl').onclick=renderStudent;
     return;
   }
+
+  // 次の回の受付が始まった直後、まだその回に申し込んでいない場合は、
+  // 前回落選したことをはっきり伝える画面を一度はさむ（そのままチケット選択画面に飛ぶと
+  // 「落選したかどうか分からない」ため）
+  const appliedThisRound = cache.application && cache.application.round===round;
+  const priorLost = r && r.status==='lost' && r.round!==round;
+  if(priorLost && !appliedThisRound){
+    renderLostNotice(r, round, deadline, testBadge);
+    return;
+  }
+
   paintApply(round,deadline,r);
+}
+
+function renderLostNotice(r, round, deadline, testBadge){
+  const prevProg=cache.programs.find(p=>p.id===r.programId);
+  $app.innerHTML=`
+    <div class="card resultbox lostbox">
+      <div class="icon">😢</div>
+      <span class="pill pill-bad">${esc(ROUND_LABEL[r.round]||'')}の結果</span>
+      <h2 style="font-family:var(--font-display);margin:10px 0 6px">今回は抽選で外れました</h2>
+      <p class="muted">
+        ${prevProg?`「${esc(prevProg.name)}」は`:'今回のプログラムは'}残念ながら選ばれませんでした。<br>
+        続けて<b>${esc(ROUND_LABEL[round]||'')}</b>に申し込めます。空きのあるプログラムから選んでください。
+      </p>
+      <button class="btn btn-primary btn-lg" id="next-apply" style="margin-top:16px">${esc(ROUND_LABEL[round]||'')}に申し込む</button>
+      ${testBadge}
+    </div>`;
+  document.getElementById('next-apply').onclick=()=>paintApply(round,deadline,r);
 }
 
 function paintApply(round,deadline,resultForHint){
