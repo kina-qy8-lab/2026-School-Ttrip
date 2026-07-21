@@ -1031,52 +1031,195 @@ function viewExport(){
   const v=document.getElementById('view'); const cn=cache.results.filter(r=>r.status==='confirmed').length;
   const realStudentCount=cache.students.filter(s=>!isTestAccount(s)).length;
   v.innerHTML=`<div class="card">
-    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">名簿の Excel 出力</h2>
+    <h2 style="font-family:var(--font-display);font-size:17px;margin:0 0 8px">名簿の出力</h2>
     <p class="muted">確定済み ${cn} 名 ／ 生徒 ${realStudentCount} 名（教員テストアカウントは出力対象外）。</p>
-    <div class="hint">「暫定版」は現在の申込（受付中の回）から、「確定版」は抽選結果から出力します。組=99・番=99 の教員テストアカウントは含まれません。</div>
-    <h3 style="font-family:var(--font-display);font-size:14px">クラス毎（A4 1枚/クラス想定）</h3>
-    <div class="toolbar"><button class="btn btn-ghost" data-x="class-temp">暫定版（クラス毎）</button>
-      <button class="btn btn-primary" data-x="class-fix">確定版（クラス毎）</button></div>
-    <h3 style="font-family:var(--font-display);font-size:14px">プログラム毎（A4 1枚/プログラム想定）</h3>
-    <div class="toolbar"><button class="btn btn-ghost" data-x="prog-temp">暫定版（プログラム毎）</button>
-      <button class="btn btn-primary" data-x="prog-fix">確定版（プログラム毎）</button></div>
+    <div class="hint">常に最新の抽選結果（確定データ）を出力します。組=99・番=99 の教員テストアカウントは含まれません。未確定の生徒は「第1次落選」「第1次未エントリー」のように現時点の状況が分かる形で表示されます。</div>
+    <h3 style="font-family:var(--font-display);font-size:14px">Excel</h3>
+    <div class="toolbar">
+      <button class="btn btn-primary" data-x="excel-class">クラス毎（Excel）</button>
+      <button class="btn btn-primary" data-x="excel-prog">プログラム毎（Excel）</button>
+    </div>
+    <h3 style="font-family:var(--font-display);font-size:14px">PDF（掲示・配布用。メールアドレスは含みません）</h3>
+    <div class="toolbar">
+      <button class="btn btn-ok" data-x="pdf-class">クラス毎（PDF・全クラス1ファイル）</button>
+      <button class="btn btn-ok" data-x="pdf-prog">プログラム毎（PDF・全プログラム1ファイル）</button>
+    </div>
     <span class="ok" id="xmsg"></span></div>`;
-  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>exportExcel(b.dataset.x));
+  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{
+    const kind=b.dataset.x;
+    if(kind==='excel-class') exportExcel('class');
+    else if(kind==='excel-prog') exportExcel('prog');
+    else if(kind==='pdf-class') exportPDF('class');
+    else if(kind==='pdf-prog') exportPDF('prog');
+  });
 }
-const pName=pid=>{const p=cache.programs.find(x=>x.id===pid);return p?p.name:'(未確定)';};
-function choiceOf(email,fixed){
-  if(fixed){const r=cache.results.find(r=>r.id===email&&r.status==='confirmed');return r?pName(r.programId):'(未確定)';}
-  const cur=cache.config?.currentRound||'round1';const a=cache.applications.find(a=>a.studentEmail===email&&a.round===cur);
-  return a?pName(a.programId):'(未申込)';
+const pName=pid=>{const p=cache.programs.find(x=>x.id===pid);return p?p.name:'(プログラム不明)';};
+
+// 未確定の生徒の「現在地」をラベル化する（例：第1次落選／第1次未エントリー／第2次落選 等）
+function unconfirmedStatusText(email){
+  const cfg=cache.config;
+  if(!cfg) return '抽選未設定';
+  const last=lastCompletedRound(cfg); // 直近に実行された回（undo機能でも使用している既存ヘルパー）
+  const roundLabel={round1:'第1次',round2:'第2次',final:'最終'};
+  if(!last){
+    const cur=cfg.currentRound||'round1';
+    const applied=cache.applications.some(a=>a.studentEmail===email&&a.round===cur);
+    return applied ? '申込あり（抽選待ち）' : '未申込（抽選待ち）';
+  }
+  const res=cache.results.find(r=>r.id===email&&r.round===last);
+  if(!res) return `${roundLabel[last]}未エントリー`;
+  if(res.status==='lost') return `${roundLabel[last]}落選`;
+  return `${roundLabel[last]}確定`; // 通常は呼び出し元で confirmed を先に判定済みのためここには来ない想定
 }
-async function exportExcel(kind){
+// 確定していればプログラム名、していなければ現在の状況ラベルを返す
+function studentDisplayStatus(email){
+  const r=cache.results.find(x=>x.id===email&&x.status==='confirmed');
+  return r ? pName(r.programId) : unconfirmedStatusText(email);
+}
+
+async function exportExcel(kind){ // kind: 'class' | 'prog'
   document.getElementById('xmsg').textContent='生成中…';
-  const XLSX=await loadXLSX(); const fixed=kind.endsWith('fix'); const wb=XLSX.utils.book_new();
+  const XLSX=await loadXLSX(); const wb=XLSX.utils.book_new();
   const students=[...cache.students].filter(s=>!isTestAccount(s)).sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
-  if(kind.startsWith('class')){
+  if(kind==='class'){
     [...new Set(students.map(s=>s.class||'(組なし)'))].forEach(cls=>{
-      const rows=[['組','番','氏名','メール',fixed?'確定プログラム':'申込プログラム']];
-      students.filter(s=>(s.class||'(組なし)')===cls).forEach(s=>rows.push([s.class||'',s.number||'',s.name||'',s.id,choiceOf(s.id,fixed)]));
+      const rows=[['組','番','氏名','メール','確定プログラム／状況']];
+      students.filter(s=>(s.class||'(組なし)')===cls).forEach(s=>rows.push([s.class||'',s.number||'',s.name||'',s.id,studentDisplayStatus(s.id)]));
       const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:6},{wch:6},{wch:18},{wch:28},{wch:46}];
       XLSX.utils.book_append_sheet(wb,ws,sheetName(`${cls}組`));
     });
   }else{
     cache.programs.forEach(p=>{
       const rows=[[p.name],['定員: '+p.capacity],[],['組','番','氏名','メール']];
-      const cur=cache.config?.currentRound||'round1';
-      const members=fixed
-        ? students.filter(s=>cache.results.find(r=>r.id===s.id&&r.status==='confirmed'&&r.programId===p.id))
-        : students.filter(s=>cache.applications.find(a=>a.studentEmail===s.id&&a.round===cur&&a.programId===p.id));
+      const confirmedEmails=new Set(cache.results.filter(r=>r.status==='confirmed'&&r.programId===p.id).map(r=>r.id));
+      const members=students.filter(s=>confirmedEmails.has(s.id));
       members.forEach(s=>rows.push([s.class||'',s.number||'',s.name||'',s.id]));
       rows.push([],[`人数: ${members.length} 名`]);
       const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[{wch:6},{wch:6},{wch:18},{wch:28}];
       XLSX.utils.book_append_sheet(wb,ws,sheetName(p.name));
     });
   }
-  XLSX.writeFile(wb,`修学旅行名簿_${kind.startsWith('class')?'クラス毎':'プログラム毎'}_${fixed?'確定版':'暫定版'}.xlsx`);
+  XLSX.writeFile(wb,`修学旅行名簿_${kind==='class'?'クラス毎':'プログラム毎'}_確定版.xlsx`);
   document.getElementById('xmsg').textContent='ダウンロードしました';
 }
 const sheetName=s=>String(s).replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,28)||'sheet';
+
+// ---- PDF 出力（html2canvas + jsPDF。既存のブラウザ内フォント（Zen Maru/Kaku Gothic）をそのまま描画に利用） ----
+let PDFLIBp=null;
+function loadPDFLibs(){
+  return PDFLIBp ??= Promise.all([
+    import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm"),
+    import("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"),
+  ]).then(([jspdfMod,h2cMod])=>({ jsPDF: jspdfMod.jsPDF, html2canvas: h2cMod.default }));
+}
+const PDF_ROWS_PER_PAGE=45;
+
+function pdfPageShell(headerHtml, rowsHtml, colgroupHtml){
+  return `<div style="width:794px;min-height:1123px;box-sizing:border-box;padding:46px 40px;
+      font-family:'Zen Kaku Gothic New',sans-serif;color:#16203a;background:#ffffff;">
+    ${headerHtml}
+    <table style="width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;">
+      ${colgroupHtml}
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </div>`;
+}
+function classPageHtml(cls,rows,pageInfo){
+  const header=`<div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:3px solid #4b3fd6;padding-bottom:10px;margin-bottom:16px;">
+      <div style="font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:22px;">${esc(cls)}組 確定名簿${pageInfo?` <span style="font-size:13px;font-weight:500;color:#64708a">${esc(pageInfo)}</span>`:''}</div>
+      <div style="font-size:11px;color:#64708a;">修学旅行 プログラム確定名簿 ・ ${new Date().toLocaleDateString('ja-JP')} 出力</div>
+    </div>
+    <div style="display:flex;background:#eef0ff;font-weight:700;font-size:13px;border-bottom:2px solid #d8ddf5;">
+      <div style="width:52px;padding:8px 6px;text-align:center;">組</div>
+      <div style="width:52px;padding:8px 6px;text-align:center;">番</div>
+      <div style="width:130px;padding:8px 10px;">氏名</div>
+      <div style="flex:1;padding:8px 10px;">確定プログラム／状況</div>
+    </div>`;
+  const rowsHtml=rows.map(s=>`<tr>
+      <td style="width:52px;text-align:center;padding:7px 6px;border-bottom:1px solid #e2e7f1;">${esc(s.class)}</td>
+      <td style="width:52px;text-align:center;padding:7px 6px;border-bottom:1px solid #e2e7f1;">${esc(s.number)}</td>
+      <td style="width:130px;padding:7px 10px;border-bottom:1px solid #e2e7f1;">${esc(s.name)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e2e7f1;">${esc(s.statusText)}</td>
+    </tr>`).join('');
+  const colgroup=`<colgroup><col style="width:52px"><col style="width:52px"><col style="width:130px"><col></colgroup>`;
+  return pdfPageShell(header,rowsHtml,colgroup);
+}
+function programPageHtml(p,rows,pageInfo){
+  const header=`<div style="border-bottom:3px solid #4b3fd6;padding-bottom:10px;margin-bottom:16px;">
+      <div style="font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:19px;line-height:1.4;">${esc(p.name)}</div>
+      <div style="font-size:12px;color:#64708a;margin-top:4px;">定員 ${esc(p.capacity)} 名 ／ 確定 ${p.confirmedTotal} 名${pageInfo?` ・ ${esc(pageInfo)}`:''}</div>
+    </div>
+    <div style="display:flex;background:#eef0ff;font-weight:700;font-size:13px;border-bottom:2px solid #d8ddf5;">
+      <div style="width:60px;padding:8px 6px;text-align:center;">組</div>
+      <div style="width:60px;padding:8px 6px;text-align:center;">番</div>
+      <div style="flex:1;padding:8px 10px;">氏名</div>
+    </div>`;
+  const rowsHtml=rows.length?rows.map(s=>`<tr>
+      <td style="width:60px;text-align:center;padding:7px 6px;border-bottom:1px solid #e2e7f1;">${esc(s.class)}</td>
+      <td style="width:60px;text-align:center;padding:7px 6px;border-bottom:1px solid #e2e7f1;">${esc(s.number)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e2e7f1;">${esc(s.name)}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="3" style="padding:16px 10px;color:#64708a;">まだ確定者はいません</td></tr>`;
+  const colgroup=`<colgroup><col style="width:60px"><col style="width:60px"><col></colgroup>`;
+  return pdfPageShell(header,rowsHtml,colgroup);
+}
+
+async function exportPDF(kind){ // kind: 'class' | 'prog'
+  const $msg=document.getElementById('xmsg'); $msg.textContent='PDFを生成中…';
+  const stage=document.createElement('div');
+  try{
+    const {jsPDF,html2canvas}=await loadPDFLibs();
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const students=[...cache.students].filter(s=>!isTestAccount(s))
+      .sort((a,b)=>(a.class+'').localeCompare(b.class+'')||(+a.number||0)-(+b.number||0));
+
+    stage.style.cssText='position:fixed;left:-99999px;top:0;';
+    document.body.appendChild(stage);
+    const pdf=new jsPDF({unit:'mm',format:'a4'});
+    const pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight();
+    let first=true;
+    const renderPage=async(html)=>{
+      stage.innerHTML=html;
+      const canvas=await html2canvas(stage.firstElementChild,{scale:2,backgroundColor:'#ffffff'});
+      const img=canvas.toDataURL('image/jpeg',0.92);
+      if(!first) pdf.addPage();
+      first=false;
+      pdf.addImage(img,'JPEG',0,0,pageW,pageH);
+    };
+
+    if(kind==='class'){
+      const classes=[...new Set(students.map(s=>s.class||'(組なし)'))];
+      for(const cls of classes){
+        const members=students.filter(s=>(s.class||'(組なし)')===cls)
+          .map(s=>({...s,statusText:studentDisplayStatus(s.id)}));
+        const totalPages=Math.max(1,Math.ceil(members.length/PDF_ROWS_PER_PAGE));
+        for(let i=0;i<Math.max(members.length,1);i+=PDF_ROWS_PER_PAGE){
+          const chunk=members.slice(i,i+PDF_ROWS_PER_PAGE);
+          const pageNo=Math.floor(i/PDF_ROWS_PER_PAGE)+1;
+          await renderPage(classPageHtml(cls,chunk,totalPages>1?`${pageNo}/${totalPages}ページ`:''));
+        }
+      }
+    } else {
+      for(const p of cache.programs){
+        const confirmedEmails=new Set(cache.results.filter(r=>r.status==='confirmed'&&r.programId===p.id).map(r=>r.id));
+        const members=students.filter(s=>confirmedEmails.has(s.id));
+        const totalPages=Math.max(1,Math.ceil(members.length/PDF_ROWS_PER_PAGE));
+        for(let i=0;i<Math.max(members.length,1);i+=PDF_ROWS_PER_PAGE){
+          const chunk=members.slice(i,i+PDF_ROWS_PER_PAGE);
+          const pageNo=Math.floor(i/PDF_ROWS_PER_PAGE)+1;
+          await renderPage(programPageHtml({...p,confirmedTotal:members.length},chunk,totalPages>1?`${pageNo}/${totalPages}ページ`:''));
+        }
+      }
+    }
+
+    pdf.save(`修学旅行名簿_${kind==='class'?'クラス毎':'プログラム毎'}_確定版.pdf`);
+    $msg.textContent='PDFをダウンロードしました';
+  }catch(e){
+    $msg.textContent='PDF生成に失敗しました: '+e.message;
+  }finally{
+    if(stage.parentNode) stage.parentNode.removeChild(stage);
+  }
+}
 
 // ---- utils ----
 function val(id){return document.getElementById(id).value;}
