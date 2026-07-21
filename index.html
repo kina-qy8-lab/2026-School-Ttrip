@@ -247,7 +247,7 @@ const TICKET_COLORS=[
 const tcolor=i=>TICKET_COLORS[(i-1+TICKET_COLORS.length)%TICKET_COLORS.length]||TICKET_COLORS[0];
 
 let user=null, viewMode=null, role={admin:false,student:false}, tickInt=null; // viewMode: null(自動) | 'admin' | 'student'
-let me={}, cache={programs:[],students:[],applications:[],results:[],testResults:[],config:null}, counts={};
+let me={}, cache={programs:[],students:[],applications:[],results:[],testResults:[],config:null}, counts={}, confirmedCounts={};
 
 // 組=99・番=99 で登録されたアカウント＝教員のテスト用アカウントとみなす
 function isTestAccount(s){ return !!s && String(s.class)==='99' && String(s.number)==='99'; }
@@ -405,12 +405,22 @@ async function renderStudent(){
   }
 }
 async function loadCountsCurrent(){
-  counts={}; const round=cache.config?.currentRound||'round1';
+  counts={}; confirmedCounts={};
+  const round=cache.config?.currentRound||'round1';
   await Promise.all(cache.programs.map(async p=>{
     try{ const cs=await getCountFromServer(query(collection(db,'applications'),
       where('programId','==',p.id),where('round','==',round))); counts[p.id]=cs.data().count; }
     catch{ counts[p.id]=null; }
   }));
+  // 第二次・最終抽選では「今回の新規申込数」だけでなく「これまでの確定人数」を踏まえないと
+  // 満員判定・空き枠表示が正しくならないため、確定人数（results, status=confirmed）も取得する
+  if(round!=='round1'){
+    await Promise.all(cache.programs.map(async p=>{
+      try{ const cs=await getCountFromServer(query(collection(db,'results'),
+        where('programId','==',p.id),where('status','==','confirmed'))); confirmedCounts[p.id]=cs.data().count; }
+      catch{ confirmedCounts[p.id]=null; }
+    }));
+  }
 }
 
 function paintStudent(){
@@ -465,13 +475,28 @@ function paintApply(round,deadline,resultForHint){
   const isModify=!!myPid, lostBefore=resultForHint&&resultForHint.status==='lost';
   const testMode=isTestAccount(me);
   const isPastDeadline = !!(deadline?.toMillis && Date.now()>deadline.toMillis());
+  const isRound1=round==='round1';
+
+  // 第一次抽選：今回の申込数を表示。第二次・最終抽選：これまでの確定人数を踏まえた「残り枠」で満員判定・表示する
+  // （新規申込数だけを見ると、既に確定済みで埋まっているプログラムも「0件」に見えてしまうため）
+  function programStatus(p){
+    const cnt=counts[p.id]; const cap=+p.capacity||0;
+    const conf=isRound1?0:confirmedCounts[p.id];
+    const remaining=(typeof conf==='number')?Math.max(0,cap-conf):null;
+    const isFull=!isRound1 && remaining!=null && remaining<=0;
+    const pct = isRound1
+      ? (cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0)
+      : (cap&&typeof conf==='number'?Math.min(100,Math.round((conf/cap)*100)):0);
+    const badgeText = isRound1
+      ? `${cnt==null?'—':cnt}/${cap}`
+      : (typeof conf==='number' ? `空き ${remaining} / 定員 ${cap}` : `— / 定員 ${cap}`);
+    return {cap,isFull,pct,badgeText};
+  }
 
   const list=cache.programs.map((p,i)=>{
     const [a,b]=tcolor(p.order||(i+1));
-    const cnt=counts[p.id]; const cap=+p.capacity||0;
-    const isFull=(round!=='round1')&&typeof cnt==='number'&&cnt>=cap;
+    const {isFull,pct,badgeText}=programStatus(p);
     const inert=isFull||isPastDeadline;
-    const pct=cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0;
     const tags=(p.tags||'').split('/').filter(Boolean).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
     const desc=p.description||'';
     const needsMore=desc.length>60; // 3行で収まらなさそうな長さなら「続きを読む」を出す
@@ -486,7 +511,7 @@ function paintApply(round,deadline,resultForHint){
           <div class="desc">${esc(desc)}</div>
           ${needsMore?`<button type="button" class="readmore" data-readmore="${esc(p.id)}">続きを読む ›</button>`:''}
           <div class="tags">${tags}</div>
-          <div class="countline"><div class="bar"><i style="width:${pct}%"></i></div><span>${cnt==null?'—':cnt}/${cap}</span></div>
+          <div class="countline"><div class="bar"><i style="width:${pct}%"></i></div><span>${badgeText}</span></div>
         </div>
       </div>
       <div class="stub"><span class="lab">SELECT</span><span class="chk">✓</span></div>
@@ -558,7 +583,8 @@ function paintApply(round,deadline,resultForHint){
       e.stopPropagation();
       const pid=btn.dataset.readmore, p=cache.programs.find(x=>x.id===pid);
       const full=btn.closest('.ticket').classList.contains('full');
-      programDetailDialog(p, (full||locked)?null:()=>{ chosen=pid; refresh(); });
+      const {badgeText}=programStatus(p);
+      programDetailDialog(p, `申込状況：${badgeText}`, (full||locked)?null:()=>{ chosen=pid; refresh(); });
     };
   });
   refresh();
@@ -589,14 +615,12 @@ function startTick(deadline, onExpire){
 function stopTick(){ if(tickInt){clearInterval(tickInt);tickInt=null;} }
 
 // プログラムの詳細（全文）をダイアログで表示。onSelect が渡された場合のみ「選ぶ」ボタンを出す
-function programDetailDialog(p, onSelect){
-  const cap=+p.capacity||0, cnt=counts[p.id];
-  const cntTxt = cnt==null ? '—' : `${cnt} / ${cap} 名`;
+function programDetailDialog(p, statusText, onSelect){
   const tags=(p.tags||'').split('/').filter(Boolean).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
   dlgbody.innerHTML=`
     ${p.imageUrl?`<img src="${esc(p.imageUrl)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:12px;background:#eef1f8" onerror="this.remove()">`:''}
     <h2>${esc(p.name)}</h2>
-    <p class="muted" style="margin:2px 0 10px">申込状況：${esc(cntTxt)}</p>
+    <p class="muted" style="margin:2px 0 10px">${esc(statusText)}</p>
     ${tags?`<div class="tags" style="margin-bottom:10px">${tags}</div>`:''}
     <p style="white-space:pre-wrap;line-height:1.8">${esc(p.description||'')}</p>
     <div class="toolbar" style="justify-content:flex-end;margin-top:18px">
