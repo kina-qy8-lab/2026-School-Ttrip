@@ -117,7 +117,7 @@ header.top{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
   font-weight:700;font-size:12px;color:var(--ta,var(--primary));cursor:pointer}
 .ticket .readmore:hover{text-decoration:underline}
 .ticket .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
-.ticket .countline{display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--ink)}
+.ticket .countline{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:8px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--ink)}
 .bar{flex:1;height:6px;border-radius:99px;background:#eef1f8;overflow:hidden}
 .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--ta),var(--tb))}
 /* perforated stub */
@@ -506,25 +506,34 @@ function paintApply(round,deadline,resultForHint){
   const isPastDeadline = !!(deadline?.toMillis && Date.now()>deadline.toMillis());
   const isRound1=round==='round1';
 
-  // 第一次抽選：今回の申込数を表示。第二次・最終抽選：これまでの確定人数を踏まえた「残り枠」で満員判定・表示する
-  // （新規申込数だけを見ると、既に確定済みで埋まっているプログラムも「0件」に見えてしまうため）
+  // 第一次抽選：今回の申込数を表示。第二次・最終抽選：これまでの確定人数を踏まえた「残り枠」に対して
+  // 「今、何人が申し込んでいるか」を示す（空き枠だけでなく倍率感が分かるようにする）
   function programStatus(p){
     const cnt=counts[p.id]; const cap=+p.capacity||0;
     const conf=isRound1?0:confirmedCounts[p.id];
     const remaining=(typeof conf==='number')?Math.max(0,cap-conf):null;
     const isFull=!isRound1 && remaining!=null && remaining<=0;
-    const pct = isRound1
-      ? (cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0)
-      : (cap&&typeof conf==='number'?Math.min(100,Math.round((conf/cap)*100)):0);
-    const badgeText = isRound1
-      ? `${cnt==null?'—':cnt}/${cap}`
-      : (typeof conf==='number' ? `空き ${remaining} / 定員 ${cap}` : `— / 定員 ${cap}`);
-    return {cap,isFull,pct,badgeText};
+    let pct, badgeText, competitive=false;
+    if(isRound1){
+      pct = cap?Math.min(100,Math.round(((cnt||0)/cap)*100)):0;
+      badgeText = `${cnt==null?'—':cnt}/${cap}`;
+    } else if(remaining==null){
+      pct=0; badgeText=`— / 定員 ${cap}`;
+    } else if(isFull){
+      pct=100; badgeText=`満員（定員 ${cap}）`;
+    } else if(cnt==null){
+      pct=0; badgeText=`空き ${remaining} 枠`;
+    } else {
+      pct=Math.min(100,Math.round((cnt/remaining)*100));
+      competitive = cnt>remaining;
+      badgeText = `空き ${remaining} 枠に ${cnt} 人 申込み中`;
+    }
+    return {cap,isFull,pct,badgeText,competitive};
   }
 
   const list=cache.programs.map((p,i)=>{
     const [a,b]=tcolor(p.order||(i+1));
-    const {isFull,pct,badgeText}=programStatus(p);
+    const {isFull,pct,badgeText,competitive}=programStatus(p);
     const inert=isFull||isPastDeadline;
     const tags=(p.tags||'').split('/').filter(Boolean).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
     const desc=p.description||'';
@@ -540,7 +549,7 @@ function paintApply(round,deadline,resultForHint){
           <div class="desc">${esc(desc)}</div>
           ${needsMore?`<button type="button" class="readmore" data-readmore="${esc(p.id)}">続きを読む ›</button>`:''}
           <div class="tags">${tags}</div>
-          <div class="countline"><div class="bar"><i style="width:${pct}%"></i></div><span>${badgeText}</span></div>
+          <div class="countline"><div class="bar"><i style="width:${pct}%;${competitive?'background:linear-gradient(90deg,var(--warn),#ffb066)':''}"></i></div><span>${badgeText}</span>${competitive?'<span class="pill pill-warn" style="margin-left:6px">倍率高め</span>':''}</div>
         </div>
       </div>
       <div class="stub"><span class="lab">SELECT</span><span class="chk">✓</span></div>
@@ -561,6 +570,10 @@ function paintApply(round,deadline,resultForHint){
       ${!isPastDeadline&&lostBefore?`<p>前回は抽選で外れました。空きのあるプログラムから選んでください。</p>`:''}
       ${testMode?`<p style="margin-top:8px;font-size:12px;opacity:.9">🧪 このアカウントはテストアカウント（組=99・番=99）です。ここでの申込みは、管理者の「テストモード」抽選の対象になります。</p>`:''}
     </div>
+    ${!isPastDeadline?`<div class="toolbar" style="justify-content:flex-end;margin:2px 0 4px">
+      <span class="muted" id="cntupdated" style="font-size:12px"></span>
+      <button class="btn btn-ghost" id="refreshCounts" style="font-size:13px;padding:7px 14px">🔄 最新の申込状況に更新</button>
+    </div>`:''}
     <div class="tickets" id="tk">${list}</div>
     <div class="applybar">
       <span class="sel-name muted" id="seln">${isPastDeadline?'締切を過ぎました':'プログラムを1つ選んでください'}</span>
@@ -617,6 +630,14 @@ function paintApply(round,deadline,resultForHint){
     };
   });
   refresh();
+  const $cntUpd=document.getElementById('cntupdated');
+  if($cntUpd) $cntUpd.textContent='更新: たった今';
+  const $refreshBtn=document.getElementById('refreshCounts');
+  if($refreshBtn) $refreshBtn.onclick=async()=>{
+    $refreshBtn.disabled=true; $refreshBtn.textContent='更新中…';
+    try{ await loadCountsCurrent(); paintApply(round,deadline,resultForHint); }
+    catch(e){ $refreshBtn.disabled=false; $refreshBtn.textContent='🔄 最新の申込状況に更新'; }
+  };
 
   $sb.onclick=async()=>{
     if(locked||!chosen)return; $sb.disabled=true; const t=$sb.textContent; $sb.textContent='送信中…';
